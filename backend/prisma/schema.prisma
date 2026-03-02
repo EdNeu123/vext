@@ -1,98 +1,135 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "mysql"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
+// ==========================================
+// USERS & AUTHENTICATION
+// ==========================================
+
+enum UserRole {
+  admin
+  seller
+}
+
 model User {
-  id            Int       @id @default(autoincrement())
-  openId        String    @unique @db.VarChar(64)
-  name          String?   @db.Text
-  email         String?   @db.VarChar(320)
-  phone         String?   @db.VarChar(32)
-  avatar        String?   @db.Text
-  loginMethod   String?   @db.VarChar(64)
-  role          Role      @default(user)
-  permissions   String?   @db.Text
-  salesGoal     Decimal?  @db.Decimal(15, 2)
-  birthDate     DateTime? @db.Date
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  lastSignedIn  DateTime  @default(now())
+  id           Int       @id @default(autoincrement())
+  email        String    @unique @db.VarChar(320)
+  password     String    @db.VarChar(255)
+  name         String    @db.VarChar(255)
+  phone        String?   @db.VarChar(32)
+  avatar       String?   @db.Text
+  role         UserRole  @default(seller)
+  permissions  Json?     @default("[]")
+  salesGoal    Decimal?  @db.Decimal(15, 2)
+  birthDate    DateTime? @db.Date
+  isActive     Boolean   @default(true)
+  lastSignedIn DateTime  @default(now())
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
-  invites       Invite[]  @relation("InvitedBy")
-  contacts      Contact[]
-  deals         Deal[]
-  tasks         Task[]    @relation("AssignedTo")
-  createdTasks  Task[]    @relation("CreatedBy")
-  landingPages  LandingPage[]
-  auditLogs     AuditLog[]
-  notifications Notification[]
+  contacts       Contact[]
+  deals          Deal[]
+  tasks          Task[]
+  landingPages   LandingPage[]
+  auditLogs      AuditLog[]
+  notifications  Notification[]
+  invitesSent    Invite[]        @relation("InvitedBy")
+  refreshTokens  RefreshToken[]
 
-  @@index([openId])
   @@index([email])
   @@index([role])
   @@map("users")
 }
 
-enum Role {
-  user
-  admin
+// ==========================================
+// REFRESH TOKENS
+// ==========================================
+
+model RefreshToken {
+  id        Int      @id @default(autoincrement())
+  token     String   @unique @db.VarChar(512)
+  userId    Int
+  expiresAt DateTime
+  revoked   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+// ==========================================
+// INVITES
+// ==========================================
+
+enum InviteStatus {
+  pending
+  used
+  expired
 }
 
 model Invite {
-  id         Int          @id @default(autoincrement())
-  email      String       @db.VarChar(320)
-  role       Role         @default(user)
-  token      String       @unique @db.VarChar(255)
-  invitedBy  Int
-  status     InviteStatus @default(pending)
-  expiresAt  DateTime
-  createdAt  DateTime     @default(now())
+  id          Int          @id @default(autoincrement())
+  token       String       @unique @db.VarChar(64)
+  email       String       @db.VarChar(320)
+  name        String       @db.VarChar(255)
+  role        UserRole     @default(seller)
+  permissions Json?        @default("[]")
+  status      InviteStatus @default(pending)
+  invitedBy   Int
+  usedBy      Int?
+  expiresAt   DateTime
+  usedAt      DateTime?
+  createdAt   DateTime     @default(now())
 
   inviter User @relation("InvitedBy", fields: [invitedBy], references: [id], onDelete: Cascade)
 
-  @@index([email])
   @@index([token])
+  @@index([email])
   @@index([status])
   @@map("invites")
 }
 
-enum InviteStatus {
-  pending
-  accepted
-  revoked
+// ==========================================
+// CONTACTS
+// ==========================================
+
+enum ChurnRisk {
+  low
+  medium
+  high
 }
 
 model Contact {
-  id               Int       @id @default(autoincrement())
-  name             String    @db.VarChar(255)
-  email            String?   @db.VarChar(320)
-  phone            String?   @db.VarChar(32)
-  company          String?   @db.VarChar(255)
-  position         String?   @db.VarChar(255)
-  segment          String?   @db.VarChar(100)
-  ltv              Decimal?  @default(0) @db.Decimal(15, 2)
-  avgTicket        Decimal?  @default(0) @db.Decimal(15, 2)
-  totalPurchases   Int?      @default(0)
-  lastPurchaseDate DateTime?
-  churnRisk        ChurnRisk @default(low)
-  nps              Int?
-  notes            String?   @db.Text
-  ownerId          Int
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  id              Int       @id @default(autoincrement())
+  name            String    @db.VarChar(255)
+  email           String?   @db.VarChar(320)
+  phone           String?   @db.VarChar(32)
+  company         String?   @db.VarChar(255)
+  position        String?   @db.VarChar(255)
+  source          String?   @db.VarChar(100)
+  notes           String?   @db.Text
+  ltv             Decimal?  @default(0) @db.Decimal(15, 2)
+  averageTicket   Decimal?  @default(0) @db.Decimal(15, 2)
+  totalPurchases  Int       @default(0)
+  lastPurchaseAt  DateTime?
+  bestContactTime String?   @db.VarChar(50)
+  churnRisk       ChurnRisk @default(low)
+  npsScore        Int?
+  ownerId         Int
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
-  owner         User            @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  deals         Deal[]
-  tasks         Task[]
-  aiPredictions AiPrediction[]
+  owner User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  deals Deal[]
+  tasks Task[]
 
   @@index([name])
   @@index([email])
@@ -102,45 +139,42 @@ model Contact {
   @@map("contacts")
 }
 
-enum ChurnRisk {
-  low
-  medium
-  high
+// ==========================================
+// TAGS
+// ==========================================
+
+model Tag {
+  id        Int      @id @default(autoincrement())
+  label     String   @unique @db.VarChar(100)
+  color     String   @default("#3b82f6") @db.VarChar(100)
+  createdAt DateTime @default(now())
+
+  deals DealTag[]
+
+  @@map("tags")
 }
 
-model Deal {
-  id                      Int       @id @default(autoincrement())
-  title                   String    @db.VarChar(255)
-  value                   Decimal   @db.Decimal(15, 2)
-  stage                   DealStage @default(prospecting)
-  probability             Int?      @default(0)
-  contactId               Int
-  productId               Int?
-  ownerId                 Int
-  budgetConfirmed         Boolean?  @default(false)
-  decisionMakerIdentified Boolean?  @default(false)
-  painPoints              String?   @db.Text
-  competitors             String?   @db.Text
-  timeline                String?   @db.VarChar(255)
-  nextFollowUpDate        DateTime?
-  notes                   String?   @db.Text
-  lostReason              String?   @db.Text
-  wonDate                 DateTime?
-  lostDate                DateTime?
-  createdAt               DateTime  @default(now())
-  updatedAt               DateTime  @updatedAt
+// ==========================================
+// PRODUCTS
+// ==========================================
 
-  contact Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
-  owner   User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  tasks   Task[]
-  tags    DealTag[]
+model Product {
+  id          Int      @id @default(autoincrement())
+  name        String   @db.VarChar(255)
+  price       Decimal  @db.Decimal(15, 2)
+  description String?  @db.Text
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  @@index([stage])
-  @@index([contactId])
-  @@index([ownerId])
-  @@index([nextFollowUpDate])
-  @@map("deals")
+  @@index([name])
+  @@index([isActive])
+  @@map("products")
 }
+
+// ==========================================
+// DEALS (Pipeline)
+// ==========================================
 
 enum DealStage {
   prospecting
@@ -151,52 +185,53 @@ enum DealStage {
   lost
 }
 
-model Product {
-  id          Int      @id @default(autoincrement())
-  name        String   @db.VarChar(255)
-  description String?  @db.Text
-  price       Decimal  @db.Decimal(15, 2)
-  sku         String?  @db.VarChar(100)
-  category    String?  @db.VarChar(100)
-  isActive    Boolean? @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+model Deal {
+  id                      Int       @id @default(autoincrement())
+  title                   String    @db.VarChar(255)
+  value                   Decimal   @db.Decimal(15, 2)
+  stage                   DealStage @default(prospecting)
+  probability             Int       @default(10)
+  contactId               Int
+  ownerId                 Int
+  productId               Int?
+  budgetConfirmed         Boolean   @default(false)
+  decisionMakerIdentified Boolean   @default(false)
+  painPoints              String?   @db.Text
+  competitors             String?   @db.Text
+  timeline                String?   @db.VarChar(100)
+  nextFollowUpDate        DateTime?
+  notes                   String?   @db.Text
+  closedAt                DateTime?
+  lostReason              String?   @db.Text
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
 
-  @@index([name])
-  @@index([sku])
-  @@index([category])
-  @@index([isActive])
-  @@map("products")
+  contact Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  owner   User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  tags    DealTag[]
+  tasks   Task[]
+
+  @@index([stage])
+  @@index([contactId])
+  @@index([ownerId])
+  @@index([nextFollowUpDate])
+  @@map("deals")
 }
 
-model Task {
-  id          Int        @id @default(autoincrement())
-  title       String     @db.VarChar(255)
-  description String?    @db.Text
-  type        TaskType   @default(other)
-  status      TaskStatus @default(pending)
-  priority    Priority   @default(medium)
-  dueDate     DateTime
-  completedAt DateTime?
-  contactId   Int?
-  dealId      Int?
-  assignedTo  Int
-  createdBy   Int
-  notes       String?    @db.Text
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+model DealTag {
+  dealId Int
+  tagId  Int
 
-  contact      Contact? @relation(fields: [contactId], references: [id], onDelete: Cascade)
-  deal         Deal?    @relation(fields: [dealId], references: [id], onDelete: Cascade)
-  assignedUser User     @relation("AssignedTo", fields: [assignedTo], references: [id], onDelete: Cascade)
-  creator      User     @relation("CreatedBy", fields: [createdBy], references: [id], onDelete: Cascade)
+  deal Deal @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  tag  Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
 
-  @@index([status])
-  @@index([dueDate])
-  @@index([assignedTo])
-  @@index([type])
-  @@map("tasks")
+  @@id([dealId, tagId])
+  @@map("deal_tags")
 }
+
+// ==========================================
+// TASKS
+// ==========================================
 
 enum TaskType {
   call
@@ -212,74 +247,76 @@ enum TaskStatus {
   cancelled
 }
 
-enum Priority {
+enum TaskPriority {
   low
   medium
   high
 }
 
-model Tag {
-  id        Int      @id @default(autoincrement())
-  name      String   @unique @db.VarChar(100)
-  color     String   @default("#3b82f6") @db.VarChar(7)
-  createdAt DateTime @default(now())
+model Task {
+  id          Int          @id @default(autoincrement())
+  title       String       @db.VarChar(255)
+  description String?      @db.Text
+  type        TaskType     @default(other)
+  status      TaskStatus   @default(pending)
+  priority    TaskPriority @default(medium)
+  dueDate     DateTime
+  completedAt DateTime?
+  dealId      Int?
+  contactId   Int?
+  ownerId     Int
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
 
-  deals DealTag[]
+  contact Contact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  deal    Deal?    @relation(fields: [dealId], references: [id], onDelete: SetNull)
+  owner   User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
 
-  @@index([name])
-  @@map("tags")
+  @@index([status])
+  @@index([dueDate])
+  @@index([ownerId])
+  @@map("tasks")
 }
 
-model DealTag {
-  dealId Int
-  tagId  Int
+// ==========================================
+// LANDING PAGES
+// ==========================================
 
-  deal Deal @relation(fields: [dealId], references: [id], onDelete: Cascade)
-  tag  Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
-
-  @@id([dealId, tagId])
-  @@map("deal_tags")
+enum ThemeColor {
+  indigo
+  emerald
+  rose
+  amber
+  blue
+  purple
 }
 
 model LandingPage {
-  id          Int      @id @default(autoincrement())
-  title       String   @db.VarChar(255)
-  slug        String   @unique @db.VarChar(255)
-  content     String   @db.Text
-  theme       String?  @default("default") @db.VarChar(50)
-  isPublished Boolean? @default(false)
-  views       Int?     @default(0)
-  conversions Int?     @default(0)
-  createdBy   Int
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id          Int        @id @default(autoincrement())
+  title       String     @db.VarChar(255)
+  headline    String     @db.VarChar(500)
+  subheadline String?    @db.Text
+  ctaText     String?    @db.VarChar(100)
+  slug        String     @unique @db.VarChar(100)
+  themeColor  ThemeColor @default(indigo)
+  productId   Int?
+  views       Int        @default(0)
+  conversions Int        @default(0)
+  isActive    Boolean    @default(true)
+  ownerId     Int
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
 
-  creator User @relation(fields: [createdBy], references: [id], onDelete: Cascade)
+  owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
 
   @@index([slug])
-  @@index([isPublished])
-  @@index([createdBy])
+  @@index([ownerId])
   @@map("landing_pages")
 }
 
-model AuditLog {
-  id         Int        @id @default(autoincrement())
-  entityType EntityType
-  entityId   Int
-  action     String     @db.VarChar(255)
-  userId     Int
-  userName   String     @db.VarChar(255)
-  changes    String?    @db.Text
-  reason     String?    @db.Text
-  createdAt  DateTime   @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([entityType, entityId])
-  @@index([userId])
-  @@index([createdAt])
-  @@map("audit_logs")
-}
+// ==========================================
+// AUDIT LOG
+// ==========================================
 
 enum EntityType {
   deal
@@ -291,50 +328,83 @@ enum EntityType {
   landing_page
 }
 
-model Notification {
-  id        Int              @id @default(autoincrement())
-  userId    Int
-  title     String           @db.VarChar(255)
-  message   String           @db.Text
-  type      NotificationType @default(info)
-  isRead    Boolean?         @default(false)
-  actionUrl String?          @db.VarChar(500)
-  createdAt DateTime         @default(now())
+model AuditLog {
+  id         Int        @id @default(autoincrement())
+  entityType EntityType
+  entityId   Int
+  action     String     @db.VarChar(255)
+  changes    Json?
+  reason     String?    @db.Text
+  userId     Int
+  userName   String     @db.VarChar(255)
+  createdAt  DateTime   @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([entityType, entityId])
   @@index([userId])
-  @@index([isRead])
   @@index([createdAt])
-  @@map("notifications")
+  @@map("audit_logs")
 }
+
+// ==========================================
+// NOTIFICATIONS
+// ==========================================
 
 enum NotificationType {
   info
   success
   warning
   error
+  ai
+}
+
+model Notification {
+  id        Int              @id @default(autoincrement())
+  title     String           @db.VarChar(255)
+  message   String?          @db.Text
+  type      NotificationType @default(info)
+  isRead    Boolean          @default(false)
+  userId    Int
+  link      String?          @db.VarChar(500)
+  createdAt DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isRead])
+  @@map("notifications")
+}
+
+// ==========================================
+// AI PREDICTIONS
+// ==========================================
+
+enum PredictionType {
+  churn_risk
+  repurchase
+  deal_score
+  best_contact_time
+}
+
+enum PredictionEntityType {
+  contact
+  deal
 }
 
 model AiPrediction {
-  id             Int            @id @default(autoincrement())
-  contactId      Int
-  predictionType PredictionType
-  score          Decimal        @db.Decimal(5, 2)
-  reason         String?        @db.Text
-  suggestedAction String?       @db.Text
-  createdAt      DateTime       @default(now())
+  id             Int                  @id @default(autoincrement())
+  type           PredictionType
+  entityType     PredictionEntityType
+  entityId       Int
+  score          Decimal?             @db.Decimal(5, 2)
+  confidence     Decimal?             @db.Decimal(5, 2)
+  factors        Json?
+  recommendation String?              @db.Text
+  createdAt      DateTime             @default(now())
+  expiresAt      DateTime?
 
-  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
-
-  @@index([contactId])
-  @@index([predictionType])
-  @@index([score])
+  @@index([entityType, entityId])
+  @@index([type])
   @@map("ai_predictions")
-}
-
-enum PredictionType {
-  churn
-  repurchase
-  upsell
 }

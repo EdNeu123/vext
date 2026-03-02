@@ -1,411 +1,169 @@
-import { useState } from "react";
-import { useAuth } from "@/_core/hooks/useAuth";
-import { trpc } from "@/lib/trpc";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Progress } from "@/components/ui/progress";
-import { toast } from "sonner";
-import {
-  Plus,
-  Search,
-  Users,
-  Mail,
-  Shield,
-  Clock,
-  MoreVertical,
-  Trash2,
-  Copy,
-  CheckCircle,
-  XCircle,
-  Crown,
-} from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { useLocation } from "wouter";
-
-interface Member {
-  id: number;
-  openId: string;
-  name: string | null;
-  email: string | null;
-  phone: string | null;
-  avatar: string | null;
-  loginMethod: string | null;
-  role: "admin" | "seller";
-  permissions: string[] | null;
-  salesGoal: string | null;
-  birthDate: Date | null;
-  createdAt: Date;
-  updatedAt: Date;
-  lastSignedIn: Date;
-}
-
-interface Invite {
-  id: number;
-  token: string;
-  email: string;
-  name: string;
-  role: "admin" | "seller";
-  permissions: string[] | null;
-  status: "pending" | "used" | "expired";
-  invitedBy: number;
-  usedBy: number | null;
-  expiresAt: Date;
-  createdAt: Date;
-  usedAt: Date | null;
-}
-
-const allPermissions = [
-  { id: "deals.view", label: "Ver oportunidades" },
-  { id: "deals.create", label: "Criar oportunidades" },
-  { id: "deals.edit", label: "Editar oportunidades" },
-  { id: "deals.delete", label: "Excluir oportunidades" },
-  { id: "contacts.view", label: "Ver contatos" },
-  { id: "contacts.create", label: "Criar contatos" },
-  { id: "contacts.edit", label: "Editar contatos" },
-  { id: "contacts.delete", label: "Excluir contatos" },
-  { id: "products.view", label: "Ver produtos" },
-  { id: "products.manage", label: "Gerenciar produtos" },
-  { id: "landing_pages.view", label: "Ver landing pages" },
-  { id: "landing_pages.manage", label: "Gerenciar landing pages" },
-  { id: "reports.view", label: "Ver relatórios" },
-  { id: "team.view", label: "Ver equipe" },
-];
-
-function formatCurrency(value: number) {
-  return new Intl.NumberFormat("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-    minimumFractionDigits: 0,
-  }).format(value);
-}
-
-function InviteDialog({ open, onOpenChange, onSuccess }: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onSuccess: () => void;
-}) {
-  const [email, setEmail] = useState("");
-  const [name, setName] = useState("");
-  const [role, setRole] = useState<"admin" | "seller">("seller");
-  const [permissions, setPermissions] = useState<string[]>([
-    "deals.view", "deals.create", "deals.edit",
-    "contacts.view", "contacts.create", "contacts.edit",
-    "products.view", "landing_pages.view"
-  ]);
-
-  const createInvite = trpc.invites.create.useMutation({
-    onSuccess: (data: { id: number; token: string }) => {
-      toast.success("Convite criado com sucesso!");
-      const inviteUrl = `${window.location.origin}/invite/${data.token}`;
-      navigator.clipboard.writeText(inviteUrl);
-      toast.info("Link do convite copiado para a área de transferência!");
-      onOpenChange(false);
-      setEmail("");
-      setName("");
-      setRole("seller");
-      onSuccess();
-    },
-    onError: (error: { message: string }) => {
-      toast.error(error.message);
-    },
-  });
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email || !name) {
-      toast.error("Email e nome são obrigatórios");
-      return;
-    }
-    createInvite.mutate({ email, name, role, permissions });
-  };
-
-  const togglePermission = (permId: string) => {
-    setPermissions((prev) =>
-      prev.includes(permId) ? prev.filter((p) => p !== permId) : [...prev, permId]
-    );
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Convidar Membro</DialogTitle>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label>Nome *</Label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome completo" />
-          </div>
-          <div className="space-y-2">
-            <Label>Email *</Label>
-            <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@exemplo.com" />
-          </div>
-          <div className="space-y-2">
-            <Label>Função</Label>
-            <Select value={role} onValueChange={(v) => setRole(v as "admin" | "seller")}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="seller">Vendedor</SelectItem>
-                <SelectItem value="admin">Administrador</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-3">
-            <Label>Permissões</Label>
-            <div className="grid grid-cols-2 gap-2 p-4 rounded-lg bg-secondary/50 max-h-48 overflow-y-auto">
-              {allPermissions.map((perm) => (
-                <div key={perm.id} className="flex items-center gap-2">
-                  <Checkbox
-                    id={perm.id}
-                    checked={permissions.includes(perm.id)}
-                    onCheckedChange={() => togglePermission(perm.id)}
-                  />
-                  <Label htmlFor={perm.id} className="text-xs font-normal cursor-pointer">
-                    {perm.label}
-                  </Label>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-            <Button type="submit" disabled={createInvite.isPending}>
-              {createInvite.isPending ? "Criando..." : "Criar Convite"}
-            </Button>
-          </div>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-}
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { teamService, inviteService } from '../services';
+import { formatCurrency, formatRelative } from '../utils/format';
+import { toast } from 'sonner';
+import Modal from '../components/Modal';
+import { useAppStore } from '../stores/useAppStore';
+import { Plus, Trophy, Copy, UserX, Crown, Shield } from 'lucide-react';
 
 export default function Team() {
-  const { user } = useAuth();
-  const [, setLocation] = useLocation();
-  const [searchQuery, setSearchQuery] = useState("");
-  const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
+  const qc = useQueryClient();
+  const user = useAppStore((s) => s.user);
+  const isAdmin = user?.role === 'admin';
 
-  // Redirect non-admins
-  if (user && user.role !== "admin") {
-    setLocation("/dashboard");
-    return null;
-  }
+  const { data: members } = useQuery({ queryKey: ['team'], queryFn: () => teamService.list() });
+  const { data: ranking } = useQuery({ queryKey: ['team-ranking'], queryFn: () => teamService.getSellerRanking() });
+  const { data: invites } = useQuery({ queryKey: ['invites'], queryFn: () => inviteService.list(), enabled: isAdmin });
 
-  const { data: members, isLoading: membersLoading, refetch: refetchMembers } = trpc.team.list.useQuery();
-  const { data: invites, isLoading: invitesLoading, refetch: refetchInvites } = trpc.invites.list.useQuery();
-  const { data: ranking } = trpc.team.getSellerRanking.useQuery();
+  const [showInvite, setShowInvite] = useState(false);
+  const [inviteForm, setInviteForm] = useState({ name: '', email: '', role: 'seller' as 'admin' | 'seller' });
 
-  const revokeInvite = trpc.invites.revoke.useMutation({
-    onSuccess: () => {
-      toast.success("Convite revogado!");
-      refetchInvites();
+  const createInvite = useMutation({
+    mutationFn: (d: any) => inviteService.create(d),
+    onSuccess: (data: any) => {
+      qc.invalidateQueries({ queryKey: ['invites'] });
+      setShowInvite(false);
+      toast.success(`Convite criado! Token: ${data.token}`);
+      navigator.clipboard.writeText(data.token);
     },
+    onError: (err: any) => toast.error(err.response?.data?.message || 'Erro'),
   });
 
-  const filteredMembers = members?.filter((m: Member) =>
-    m.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    m.email?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const revokeMut = useMutation({
+    mutationFn: (id: number) => inviteService.revoke(id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['invites'] }); toast.success('Convite revogado!'); },
+  });
 
-  const pendingInvites = invites?.filter((i: Invite) => i.status === "pending");
-
-  if (membersLoading || invitesLoading) {
-    return (
-      <div className="space-y-6">
-        <Skeleton className="h-10 w-64" />
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {[...Array(6)].map((_, i) => (
-            <Skeleton key={i} className="h-48 rounded-xl" />
-          ))}
-        </div>
-      </div>
-    );
-  }
+  const memberList = (members || []) as any[];
+  const rankingList = (ranking || []) as any[];
+  const inviteList = (invites || []) as any[];
 
   return (
-    <div>
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Gestão de Equipe</h1>
-          <p className="text-muted-foreground">{members?.length || 0} membros ativos</p>
+          <h1 className="text-2xl font-bold">Equipe</h1>
+          <p className="text-gray-500 mt-1">{memberList.length} membros ativos</p>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar membros..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 w-64"
-            />
-          </div>
-          <Button className="gap-2" onClick={() => setInviteDialogOpen(true)}>
-            <Plus className="w-4 h-4" />
-            Convidar
-          </Button>
-        </div>
+        {isAdmin && (
+          <button onClick={() => setShowInvite(true)} className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 rounded-xl text-sm font-medium transition">
+            <Plus size={16} /> Convidar
+          </button>
+        )}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Members List */}
-        <div className="lg:col-span-2 space-y-4">
-          <h2 className="font-bold text-lg">Membros da Equipe</h2>
-          {filteredMembers && filteredMembers.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {filteredMembers.map((member: Member) => {
-                const memberRanking = ranking?.find((r) => r.id === member.id);
-                return (
-                  <Card key={member.id} className="hover:shadow-lg transition-all">
-                    <CardContent className="p-5">
-                      <div className="flex items-start gap-4">
-                        <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-lg">
-                          {member.name?.charAt(0).toUpperCase() || "U"}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <h3 className="font-bold truncate">{member.name || "Usuário"}</h3>
-                            {member.role === "admin" && (
-                              <Crown className="w-4 h-4 text-amber-500" />
-                            )}
-                          </div>
-                          <p className="text-sm text-muted-foreground truncate">{member.email}</p>
-                          <Badge variant="secondary" className="mt-2">
-                            {member.role === "admin" ? "Administrador" : "Vendedor"}
-                          </Badge>
-                        </div>
-                      </div>
-
-                      {member.role === "seller" && memberRanking && (
-                        <div className="mt-4 pt-4 border-t">
-                          <div className="flex justify-between text-sm mb-2">
-                            <span className="text-muted-foreground">Meta mensal</span>
-                            <span className="font-medium">{memberRanking.progress.toFixed(0)}%</span>
-                          </div>
-                          <Progress value={Math.min(memberRanking.progress, 100)} className="h-2" />
-                          <p className="text-xs text-muted-foreground mt-1">
-                            {formatCurrency(memberRanking.totalValue)} de {formatCurrency(50000)}
-                          </p>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                );
-              })}
+      {/* Members Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {memberList.map((m: any) => (
+          <div key={m.id} className="bg-gray-900 border border-gray-800 rounded-2xl p-5 hover:border-gray-700 transition">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 flex items-center justify-center text-lg font-bold">
+                {m.name?.charAt(0)?.toUpperCase()}
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <p className="font-semibold">{m.name}</p>
+                  {m.role === 'admin' ? <Crown size={14} className="text-amber-400" /> : <Shield size={14} className="text-gray-500" />}
+                </div>
+                <p className="text-xs text-gray-500">{m.email}</p>
+              </div>
             </div>
-          ) : (
-            <Card>
-              <CardContent className="py-12 text-center">
-                <Users className="w-12 h-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-                <p className="text-muted-foreground">Nenhum membro encontrado</p>
-              </CardContent>
-            </Card>
-          )}
-        </div>
-
-        {/* Pending Invites */}
-        <div className="space-y-4">
-          <h2 className="font-bold text-lg">Convites Pendentes</h2>
-          {pendingInvites && pendingInvites.length > 0 ? (
-            <div className="space-y-3">
-              {pendingInvites.map((invite: Invite) => (
-                <Card key={invite.id}>
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <p className="font-medium">{invite.name}</p>
-                        <p className="text-sm text-muted-foreground">{invite.email}</p>
-                        <div className="flex items-center gap-2 mt-2">
-                          <Badge variant="outline" className="text-xs">
-                            {invite.role === "admin" ? "Admin" : "Vendedor"}
-                          </Badge>
-                          <span className="text-xs text-muted-foreground flex items-center gap-1">
-                            <Clock className="w-3 h-3" />
-                            Expira em {new Date(invite.expiresAt).toLocaleDateString("pt-BR")}
-                          </span>
-                        </div>
-                      </div>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon">
-                            <MoreVertical className="w-4 h-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => {
-                            navigator.clipboard.writeText(`${window.location.origin}/invite/${invite.token}`);
-                            toast.success("Link copiado!");
-                          }}>
-                            <Copy className="w-4 h-4 mr-2" /> Copiar Link
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => revokeInvite.mutate({ id: invite.id })}
-                            className="text-destructive"
-                          >
-                            <Trash2 className="w-4 h-4 mr-2" /> Revogar
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+            <div className="mt-3 flex justify-between text-xs text-gray-500">
+              <span>{m.role === 'admin' ? 'Administrador' : 'Vendedor'}</span>
+              <span>Último acesso: {m.lastSignedIn ? formatRelative(m.lastSignedIn) : 'Nunca'}</span>
             </div>
-          ) : (
-            <Card>
-              <CardContent className="py-8 text-center">
-                <Mail className="w-8 h-8 mx-auto mb-2 text-muted-foreground opacity-50" />
-                <p className="text-sm text-muted-foreground">Nenhum convite pendente</p>
-              </CardContent>
-            </Card>
-          )}
+            {m.salesGoal && (
+              <div className="mt-2 text-xs text-gray-500">Meta: {formatCurrency(Number(m.salesGoal))}</div>
+            )}
+          </div>
+        ))}
+      </div>
 
-          {/* Used Invites */}
-          <h2 className="font-bold text-lg mt-6">Histórico de Convites</h2>
-          {invites && invites.filter((i: Invite) => i.status !== "pending").length > 0 ? (
-            <div className="space-y-2">
-              {invites.filter((i: Invite) => i.status !== "pending").slice(0, 5).map((invite: Invite) => (
-                <div key={invite.id} className="flex items-center gap-3 p-3 rounded-lg bg-secondary/50">
-                  {invite.status === "used" ? (
-                    <CheckCircle className="w-4 h-4 text-emerald-500" />
-                  ) : (
-                    <XCircle className="w-4 h-4 text-red-500" />
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{invite.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {invite.status === "used" ? "Aceito" : "Expirado"}
-                    </p>
+      {/* Seller Ranking */}
+      {rankingList.length > 0 && (
+        <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <Trophy size={20} className="text-amber-400" />
+            <h3 className="text-lg font-semibold">Ranking de Vendedores</h3>
+          </div>
+          <div className="space-y-3">
+            {rankingList.map((s: any, i: number) => (
+              <div key={s.id} className="flex items-center gap-4">
+                <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${i === 0 ? 'bg-amber-500/20 text-amber-400' : i === 1 ? 'bg-gray-400/20 text-gray-300' : i === 2 ? 'bg-orange-500/20 text-orange-400' : 'bg-gray-800 text-gray-500'}`}>
+                  {i + 1}
+                </span>
+                <div className="flex-1">
+                  <p className="text-sm font-medium">{s.name}</p>
+                  <div className="h-2 bg-gray-800 rounded-full overflow-hidden mt-1">
+                    <div className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full" style={{ width: `${Math.min(s.progress, 100)}%` }} />
                   </div>
                 </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground text-center py-4">Nenhum histórico</p>
-          )}
+                <div className="text-right">
+                  <p className="text-sm font-bold text-emerald-400">{formatCurrency(s.totalValue)}</p>
+                  <p className="text-[10px] text-gray-500">{s.dealsCount} deals</p>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
-      <InviteDialog
-        open={inviteDialogOpen}
-        onOpenChange={setInviteDialogOpen}
-        onSuccess={() => { refetchInvites(); refetchMembers(); }}
-      />
+      {/* Invites (admin only) */}
+      {isAdmin && inviteList.length > 0 && (
+        <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6">
+          <h3 className="text-lg font-semibold mb-4">Convites</h3>
+          <div className="space-y-2">
+            {inviteList.map((inv: any) => (
+              <div key={inv.id} className="flex items-center justify-between p-3 bg-gray-800/50 rounded-xl">
+                <div>
+                  <p className="text-sm font-medium">{inv.name} ({inv.email})</p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full ${inv.status === 'pending' ? 'bg-yellow-400/10 text-yellow-400' : inv.status === 'used' ? 'bg-emerald-400/10 text-emerald-400' : 'bg-red-400/10 text-red-400'}`}>
+                      {inv.status}
+                    </span>
+                    <button onClick={() => { navigator.clipboard.writeText(inv.token); toast.success('Token copiado!'); }}
+                      className="text-gray-500 hover:text-white transition"><Copy size={12} /></button>
+                  </div>
+                </div>
+                {inv.status === 'pending' && (
+                  <button onClick={() => revokeMut.mutate(inv.id)} className="text-gray-500 hover:text-red-400 transition" title="Revogar">
+                    <UserX size={16} />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Invite Modal */}
+      <Modal open={showInvite} onClose={() => setShowInvite(false)} title="Convidar Membro" size="sm">
+        <form onSubmit={(e) => { e.preventDefault(); createInvite.mutate(inviteForm); }} className="space-y-4">
+          <div>
+            <label className="block text-sm text-gray-400 mb-1">Nome</label>
+            <input value={inviteForm.name} onChange={(e) => setInviteForm({ ...inviteForm, name: e.target.value })} required
+              className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          </div>
+          <div>
+            <label className="block text-sm text-gray-400 mb-1">Email</label>
+            <input type="email" value={inviteForm.email} onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })} required
+              className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          </div>
+          <div>
+            <label className="block text-sm text-gray-400 mb-1">Função</label>
+            <select value={inviteForm.role} onChange={(e) => setInviteForm({ ...inviteForm, role: e.target.value as any })}
+              className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+              <option value="seller">Vendedor</option>
+              <option value="admin">Administrador</option>
+            </select>
+          </div>
+          <button type="submit" disabled={createInvite.isPending}
+            className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 rounded-xl font-semibold transition disabled:opacity-50">
+            {createInvite.isPending ? 'Criando...' : 'Enviar Convite'}
+          </button>
+        </form>
+      </Modal>
     </div>
   );
 }

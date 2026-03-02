@@ -1,345 +1,81 @@
-import { useState } from "react";
-import { trpc } from "@/lib/trpc";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
-import { toast } from "sonner";
-import {
-  Plus,
-  Search,
-  Package,
-  DollarSign,
-  MoreVertical,
-  Edit,
-  Trash2,
-  Eye,
-  EyeOff,
-} from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { productService } from '../services';
+import { formatCurrency } from '../utils/format';
+import { toast } from 'sonner';
+import Modal from '../components/Modal';
+import { Plus, Edit2, Trash2 } from 'lucide-react';
+import type { Product } from '../models';
 
-function formatCurrency(value: number) {
-  return new Intl.NumberFormat("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-    minimumFractionDigits: 2,
-  }).format(value);
-}
+export default function Products() {
+  const qc = useQueryClient();
+  const { data, isLoading } = useQuery({ queryKey: ['products'], queryFn: () => productService.list() });
+  const products = (data || []) as Product[];
+  const [showModal, setShowModal] = useState(false);
+  const [editing, setEditing] = useState<Product | null>(null);
+  const [form, setForm] = useState({ name: '', price: '', description: '' });
 
-interface Product {
-  id: number;
-  name: string;
-  description: string | null;
-  price: string;
-  sku?: string | null;
-  category?: string | null;
-  isActive: boolean | null;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-function ProductCard({ product, onEdit, onDelete, onToggle }: {
-  product: Product;
-  onEdit: () => void;
-  onDelete: () => void;
-  onToggle: () => void;
-}) {
-  return (
-    <Card className={`hover:shadow-lg transition-all group ${!product.isActive ? "opacity-60" : ""}`}>
-      <CardContent className="p-5">
-        <div className="flex items-start justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
-              <Package className="w-6 h-6 text-primary" />
-            </div>
-            <div>
-              <h3 className="font-bold">{product.name}</h3>
-              {product.sku && (
-                <p className="text-xs text-muted-foreground">SKU: {product.sku}</p>
-              )}
-            </div>
-          </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="opacity-0 group-hover:opacity-100 transition-opacity">
-                <MoreVertical className="w-4 h-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={onEdit}>
-                <Edit className="w-4 h-4 mr-2" /> Editar
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={onToggle}>
-                {product.isActive ? (
-                  <><EyeOff className="w-4 h-4 mr-2" /> Desativar</>
-                ) : (
-                  <><Eye className="w-4 h-4 mr-2" /> Ativar</>
-                )}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={onDelete} className="text-destructive">
-                <Trash2 className="w-4 h-4 mr-2" /> Excluir
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-
-        {product.description && (
-          <p className="text-sm text-muted-foreground mb-4 line-clamp-2">{product.description}</p>
-        )}
-
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1">
-            <DollarSign className="w-4 h-4 text-primary" />
-            <span className="font-bold text-lg">{formatCurrency(Number(product.price))}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            {product.category && (
-              <Badge variant="secondary">{product.category}</Badge>
-            )}
-            <Badge variant={product.isActive ? "default" : "outline"}>
-              {product.isActive ? "Ativo" : "Inativo"}
-            </Badge>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function ProductDialog({ product, open, onOpenChange, onSuccess }: {
-  product?: Product;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onSuccess: () => void;
-}) {
-  const [name, setName] = useState(product?.name || "");
-  const [description, setDescription] = useState(product?.description || "");
-  const [price, setPrice] = useState(product?.price || "");
-  const [sku, setSku] = useState(product?.sku || "");
-  const [category, setCategory] = useState(product?.category || "");
-  const [isActive, setIsActive] = useState(product?.isActive ?? true);
-
-  const createProduct = trpc.products.create.useMutation({
-    onSuccess: () => {
-      toast.success("Produto criado com sucesso!");
-      onOpenChange(false);
-      onSuccess();
-    },
-    onError: (error) => {
-      toast.error(error.message);
-    },
+  const createMut = useMutation({
+    mutationFn: (d: any) => productService.create(d),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['products'] }); closeModal(); toast.success('Produto criado!'); },
+    onError: (err: any) => toast.error(err.response?.data?.message || 'Erro'),
+  });
+  const updateMut = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: any }) => productService.update(id, data),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['products'] }); closeModal(); toast.success('Produto atualizado!'); },
+  });
+  const deleteMut = useMutation({
+    mutationFn: (id: number) => productService.delete(id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['products'] }); toast.success('Produto desativado!'); },
   });
 
-  const updateProduct = trpc.products.update.useMutation({
-    onSuccess: () => {
-      toast.success("Produto atualizado!");
-      onOpenChange(false);
-      onSuccess();
-    },
-    onError: (error) => {
-      toast.error(error.message);
-    },
-  });
+  const openCreate = () => { setEditing(null); setForm({ name: '', price: '', description: '' }); setShowModal(true); };
+  const openEdit = (p: Product) => { setEditing(p); setForm({ name: p.name, price: String(p.price), description: p.description || '' }); setShowModal(true); };
+  const closeModal = () => { setShowModal(false); setEditing(null); };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !price) {
-      toast.error("Nome e preço são obrigatórios");
-      return;
-    }
-
-    const data = {
-      name,
-      description: description || undefined,
-      price: Number(price),
-      sku: sku || undefined,
-      category: category || undefined,
-      isActive,
-    };
-
-    if (product) {
-      updateProduct.mutate({ id: product.id, ...data });
-    } else {
-      createProduct.mutate(data);
-    }
+    const d = { name: form.name, price: parseFloat(form.price), description: form.description || undefined };
+    if (editing) updateMut.mutate({ id: editing.id, data: d });
+    else createMut.mutate(d);
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>{product ? "Editar Produto" : "Novo Produto"}</DialogTitle>
-        </DialogHeader>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div><h1 className="text-2xl font-bold">Produtos</h1><p className="text-gray-500 mt-1">{products.length} produtos ativos</p></div>
+        <button onClick={openCreate} className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 rounded-xl text-sm font-medium transition"><Plus size={16} /> Novo Produto</button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {isLoading ? <div className="col-span-full text-center py-12 text-gray-500">Carregando...</div> :
+          products.map((p) => (
+            <div key={p.id} className="bg-gray-900 border border-gray-800 rounded-2xl p-5 hover:border-gray-700 transition">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h3 className="font-semibold">{p.name}</h3>
+                  <p className="text-2xl font-bold text-emerald-400 mt-2">{formatCurrency(Number(p.price))}</p>
+                  {p.description && <p className="text-sm text-gray-500 mt-2">{p.description}</p>}
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => openEdit(p)} className="text-gray-400 hover:text-indigo-400"><Edit2 size={16} /></button>
+                  <button onClick={() => { if (confirm('Desativar produto?')) deleteMut.mutate(p.id); }} className="text-gray-400 hover:text-red-400"><Trash2 size={16} /></button>
+                </div>
+              </div>
+            </div>
+          ))}
+      </div>
+
+      <Modal open={showModal} onClose={closeModal} title={editing ? 'Editar Produto' : 'Novo Produto'}>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label>Nome *</Label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome do produto" />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Preço *</Label>
-              <Input type="number" step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="0.00" />
-            </div>
-            <div className="space-y-2">
-              <Label>SKU</Label>
-              <Input value={sku} onChange={(e) => setSku(e.target.value)} placeholder="Código único" />
-            </div>
-          </div>
-          <div className="space-y-2">
-            <Label>Categoria</Label>
-            <Input value={category} onChange={(e) => setCategory(e.target.value)} placeholder="Ex: Software, Serviço" />
-          </div>
-          <div className="space-y-2">
-            <Label>Descrição</Label>
-            <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} />
-          </div>
-          <div className="flex items-center justify-between p-3 rounded-lg bg-secondary/50">
-            <Label htmlFor="active">Produto ativo</Label>
-            <Switch id="active" checked={isActive} onCheckedChange={setIsActive} />
-          </div>
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-            <Button type="submit" disabled={createProduct.isPending || updateProduct.isPending}>
-              {(createProduct.isPending || updateProduct.isPending) ? "Salvando..." : "Salvar"}
-            </Button>
-          </div>
+          <div><label className="block text-sm text-gray-400 mb-1">Nome *</label><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-xl text-white focus:ring-2 focus:ring-indigo-500" /></div>
+          <div><label className="block text-sm text-gray-400 mb-1">Preço *</label><input type="number" step="0.01" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} required className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-xl text-white focus:ring-2 focus:ring-indigo-500" /></div>
+          <div><label className="block text-sm text-gray-400 mb-1">Descrição</label><textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-xl text-white focus:ring-2 focus:ring-indigo-500" /></div>
+          <button type="submit" disabled={createMut.isPending || updateMut.isPending} className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 rounded-xl font-semibold transition disabled:opacity-50">
+            {(createMut.isPending || updateMut.isPending) ? 'Salvando...' : editing ? 'Atualizar' : 'Criar'}
+          </button>
         </form>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-export default function Products() {
-  const [searchQuery, setSearchQuery] = useState("");
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingProduct, setEditingProduct] = useState<Product | undefined>();
-
-  const { data: products, isLoading, refetch } = trpc.products.list.useQuery();
-
-  const deleteProduct = trpc.products.delete.useMutation({
-    onSuccess: () => {
-      toast.success("Produto excluído!");
-      refetch();
-    },
-  });
-
-  const updateProduct = trpc.products.update.useMutation({
-    onSuccess: () => {
-      toast.success("Produto atualizado!");
-      refetch();
-    },
-  });
-
-  const filteredProducts = products?.filter((p: Product) =>
-    p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (p.sku && p.sku.toLowerCase().includes(searchQuery.toLowerCase())) ||
-    (p.category && p.category.toLowerCase().includes(searchQuery.toLowerCase()))
-  );
-
-  const handleEdit = (product: Product) => {
-    setEditingProduct(product);
-    setDialogOpen(true);
-  };
-
-  const handleNew = () => {
-    setEditingProduct(undefined);
-    setDialogOpen(true);
-  };
-
-  const handleToggle = (product: Product) => {
-    updateProduct.mutate({ id: product.id, isActive: !product.isActive });
-  };
-
-  if (isLoading) {
-    return (
-      <div className="space-y-6">
-        <div className="flex justify-between items-center">
-          <Skeleton className="h-10 w-64" />
-          <Skeleton className="h-10 w-40" />
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {[...Array(6)].map((_, i) => (
-            <Skeleton key={i} className="h-48 rounded-xl" />
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div>
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-        <div>
-          <h1 className="text-2xl font-bold">Produtos</h1>
-          <p className="text-muted-foreground">{products?.length || 0} produtos cadastrados</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar produtos..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 w-64"
-            />
-          </div>
-          <Button className="gap-2" onClick={handleNew}>
-            <Plus className="w-4 h-4" />
-            Novo Produto
-          </Button>
-        </div>
-      </div>
-
-      {filteredProducts && filteredProducts.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredProducts.map((product) => (
-            <ProductCard
-              key={product.id}
-              product={product}
-              onEdit={() => handleEdit(product)}
-              onDelete={() => {
-                if (confirm("Excluir este produto?")) {
-                  deleteProduct.mutate({ id: product.id });
-                }
-              }}
-              onToggle={() => handleToggle(product)}
-            />
-          ))}
-        </div>
-      ) : (
-        <Card>
-          <CardContent className="py-16 text-center">
-            <Package className="w-12 h-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-            <h3 className="font-bold text-lg mb-2">Nenhum produto encontrado</h3>
-            <p className="text-muted-foreground mb-4">
-              {searchQuery ? "Tente uma busca diferente" : "Comece adicionando seu primeiro produto"}
-            </p>
-            {!searchQuery && (
-              <Button className="gap-2" onClick={handleNew}>
-                <Plus className="w-4 h-4" />
-                Novo Produto
-              </Button>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      <ProductDialog
-        product={editingProduct}
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        onSuccess={refetch}
-      />
+      </Modal>
     </div>
   );
 }

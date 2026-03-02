@@ -1,415 +1,119 @@
-import { useState } from "react";
-import { trpc } from "@/lib/trpc";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Progress } from "@/components/ui/progress";
-import { toast } from "sonner";
-import {
-  Brain,
-  TrendingUp,
-  AlertTriangle,
-  RefreshCw,
-  Target,
-  Users,
-  DollarSign,
-  Clock,
-  Sparkles,
-  ChevronRight,
-  ShoppingCart,
-  AlertCircle,
-} from "lucide-react";
-import { Link } from "wouter";
+import { useQuery } from '@tanstack/react-query';
+import { aiService } from '../services';
+import { formatCurrency } from '../utils/format';
+import { Radar, AlertTriangle, TrendingUp, User, DollarSign, ShieldAlert, RefreshCw } from 'lucide-react';
 
-function formatCurrency(value: number) {
-  return new Intl.NumberFormat("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-    minimumFractionDigits: 0,
-  }).format(value);
-}
-
-interface AIInsight {
-  type: "recompra" | "churn" | "upsell" | "followup";
-  contactId: number;
-  contactName: string;
-  companyName: string | null;
-  score: number;
-  reason: string;
-  suggestedAction: string;
-  potentialValue: number;
-  urgency: "high" | "medium" | "low";
-}
-
-function InsightCard({ insight, onAction }: { insight: AIInsight; onAction: () => void }) {
-  const typeConfig = {
-    recompra: {
-      icon: ShoppingCart,
-      label: "Oportunidade de Recompra",
-      color: "text-emerald-500",
-      bg: "bg-emerald-500/10",
-    },
-    churn: {
-      icon: AlertTriangle,
-      label: "Risco de Churn",
-      color: "text-red-500",
-      bg: "bg-red-500/10",
-    },
-    upsell: {
-      icon: TrendingUp,
-      label: "Potencial de Upsell",
-      color: "text-blue-500",
-      bg: "bg-blue-500/10",
-    },
-    followup: {
-      icon: Clock,
-      label: "Follow-up Necessário",
-      color: "text-amber-500",
-      bg: "bg-amber-500/10",
-    },
-  };
-
-  const config = typeConfig[insight.type];
-  const Icon = config.icon;
-
-  const urgencyColors = {
-    high: "bg-red-500",
-    medium: "bg-amber-500",
-    low: "bg-emerald-500",
-  };
-
-  return (
-    <Card className="hover:shadow-lg transition-all">
-      <CardContent className="p-5">
-        <div className="flex items-start gap-4">
-          <div className={`w-12 h-12 rounded-xl ${config.bg} flex items-center justify-center`}>
-            <Icon className={`w-6 h-6 ${config.color}`} />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1">
-              <Badge variant="secondary" className="text-xs">
-                {config.label}
-              </Badge>
-              <div className={`w-2 h-2 rounded-full ${urgencyColors[insight.urgency]}`} />
-            </div>
-            <h3 className="font-bold">{insight.contactName}</h3>
-            {insight.companyName && (
-              <p className="text-sm text-muted-foreground">{insight.companyName}</p>
-            )}
-          </div>
-          <div className="text-right">
-            <p className="text-xs text-muted-foreground">Score</p>
-            <p className="font-bold text-lg">{insight.score}%</p>
-          </div>
-        </div>
-
-        <div className="mt-4 p-3 rounded-lg bg-secondary/50">
-          <p className="text-sm text-muted-foreground mb-2">
-            <Sparkles className="w-4 h-4 inline mr-1 text-primary" />
-            Análise da IA:
-          </p>
-          <p className="text-sm">{insight.reason}</p>
-        </div>
-
-        <div className="mt-4 flex items-center justify-between">
-          <div>
-            <p className="text-xs text-muted-foreground">Valor potencial</p>
-            <p className="font-bold text-primary">{formatCurrency(insight.potentialValue)}</p>
-          </div>
-          <Button size="sm" className="gap-2" onClick={onAction}>
-            {insight.suggestedAction}
-            <ChevronRight className="w-4 h-4" />
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
+const CHURN_COLORS = { low: 'text-emerald-400', medium: 'text-yellow-400', high: 'text-red-400' };
 
 export default function VextRadar() {
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-
-  const { data: radarData, isLoading, refetch } = trpc.ai.getVextRadar.useQuery();
-
-  const runAnalysis = trpc.ai.analyzeDeal.useMutation({
-    onMutate: () => {
-      setIsAnalyzing(true);
-    },
-    onSuccess: () => {
-      toast.success("Análise concluída! Novos insights disponíveis.");
-      refetch();
-      setIsAnalyzing(false);
-    },
-    onError: (error: { message: string }) => {
-      toast.error(error.message);
-      setIsAnalyzing(false);
-    },
+  const { data, isLoading, refetch } = useQuery({
+    queryKey: ['vext-radar'],
+    queryFn: () => aiService.getVextRadar(),
   });
 
-  const handleAction = (insight: AIInsight) => {
-    toast.info(`Ação: ${insight.suggestedAction} para ${insight.contactName}`);
-  };
-
-  if (isLoading) {
-    return (
-      <div className="space-y-6">
-        <Skeleton className="h-10 w-64" />
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          {[...Array(4)].map((_, i) => (
-            <Skeleton key={i} className="h-24 rounded-xl" />
-          ))}
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {[...Array(4)].map((_, i) => (
-            <Skeleton key={i} className="h-48 rounded-xl" />
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  // Mock insights for demonstration
-  const mockInsights: AIInsight[] = [
-    {
-      type: "recompra",
-      contactId: 1,
-      contactName: "Tech Solutions Ltda",
-      companyName: "Setor de TI",
-      score: 92,
-      reason: "Cliente comprou licenças há 11 meses. Padrão histórico indica renovação próxima. Satisfação alta (NPS 9).",
-      suggestedAction: "Agendar reunião",
-      potentialValue: 45000,
-      urgency: "high",
-    },
-    {
-      type: "churn",
-      contactId: 2,
-      contactName: "Indústria ABC",
-      companyName: "Manufatura",
-      score: 78,
-      reason: "Redução de 40% no uso da plataforma nos últimos 30 dias. Último contato há 45 dias. Ticket de suporte não resolvido.",
-      suggestedAction: "Ligar agora",
-      potentialValue: 32000,
-      urgency: "high",
-    },
-    {
-      type: "upsell",
-      contactId: 3,
-      contactName: "Startup XYZ",
-      companyName: "Tecnologia",
-      score: 85,
-      reason: "Empresa cresceu 150% no último trimestre. Atingiu limite do plano atual. Histórico de expansão gradual.",
-      suggestedAction: "Propor upgrade",
-      potentialValue: 28000,
-      urgency: "medium",
-    },
-    {
-      type: "followup",
-      contactId: 4,
-      contactName: "Comércio Digital",
-      companyName: "E-commerce",
-      score: 71,
-      reason: "Proposta enviada há 7 dias sem resposta. Lead qualificado com BANT completo. Decisão prevista para este mês.",
-      suggestedAction: "Enviar follow-up",
-      potentialValue: 18000,
-      urgency: "medium",
-    },
-  ];
-
-  const recompraInsights = mockInsights.filter((i) => i.type === "recompra");
-  const churnInsights = mockInsights.filter((i) => i.type === "churn");
-  const upsellInsights = mockInsights.filter((i) => i.type === "upsell");
-  const followupInsights = mockInsights.filter((i) => i.type === "followup");
+  const radar = data as any;
+  const churnAlerts = radar?.churnAlerts || [];
+  const repurchaseOpportunities = radar?.repurchaseOpportunities || [];
 
   return (
-    <div>
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-        <div>
-          <div className="flex items-center gap-2">
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-r from-indigo-500 to-purple-500 flex items-center justify-center">
+            <Radar size={24} />
+          </div>
+          <div>
             <h1 className="text-2xl font-bold">Vext Radar</h1>
-            <Badge className="bg-primary/20 text-primary">
-              <Brain className="w-3 h-3 mr-1" />
-              IA Preditiva
-            </Badge>
+            <p className="text-gray-500 mt-0.5">Inteligência de churn e oportunidades de recompra</p>
           </div>
-          <p className="text-muted-foreground">Inteligência preditiva para suas vendas</p>
         </div>
-        <Button
-          className="gap-2"
-          onClick={() => runAnalysis.mutate({ dealId: 0 })}
-          disabled={isAnalyzing}
-        >
-          <RefreshCw className={`w-4 h-4 ${isAnalyzing ? "animate-spin" : ""}`} />
-          {isAnalyzing ? "Analisando..." : "Executar Análise"}
-        </Button>
+        <button onClick={() => refetch()} className="flex items-center gap-2 px-4 py-2.5 bg-gray-800 hover:bg-gray-700 rounded-xl text-sm transition">
+          <RefreshCw size={14} /> Atualizar
+        </button>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-        <Card>
-          <CardContent className="p-4 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-emerald-500/10 flex items-center justify-center">
-              <ShoppingCart className="w-6 h-6 text-emerald-500" />
+      {isLoading ? (
+        <div className="text-center py-16 text-gray-500">Analisando dados...</div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Churn Alerts */}
+          <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6">
+            <div className="flex items-center gap-2 mb-5">
+              <ShieldAlert size={20} className="text-red-400" />
+              <h3 className="text-lg font-semibold">Alertas de Churn</h3>
+              <span className="ml-auto text-xs px-2 py-0.5 bg-red-500/10 text-red-400 rounded-full">{churnAlerts.length}</span>
             </div>
-            <div>
-              <p className="text-2xl font-bold">{recompraInsights.length}</p>
-              <p className="text-sm text-muted-foreground">Oportunidades de Recompra</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-red-500/10 flex items-center justify-center">
-              <AlertTriangle className="w-6 h-6 text-red-500" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold">{churnInsights.length}</p>
-              <p className="text-sm text-muted-foreground">Riscos de Churn</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-blue-500/10 flex items-center justify-center">
-              <TrendingUp className="w-6 h-6 text-blue-500" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold">{upsellInsights.length}</p>
-              <p className="text-sm text-muted-foreground">Potenciais de Upsell</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
-              <DollarSign className="w-6 h-6 text-primary" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold">
-                {formatCurrency(mockInsights.reduce((acc, i) => acc + i.potentialValue, 0))}
-              </p>
-              <p className="text-sm text-muted-foreground">Valor Total Identificado</p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
 
-      {/* AI Health Score */}
-      <Card className="mb-8">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Brain className="w-5 h-5 text-primary" />
-            Saúde da Base de Clientes
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div>
-              <div className="flex justify-between mb-2">
-                <span className="text-sm text-muted-foreground">Score Geral</span>
-                <span className="font-bold">78%</span>
+            {churnAlerts.length === 0 ? (
+              <p className="text-sm text-gray-500 text-center py-6">Nenhum alerta de churn no momento</p>
+            ) : (
+              <div className="space-y-3">
+                {churnAlerts.map((contact: any) => (
+                  <div key={contact.id} className="flex items-center gap-4 p-4 bg-red-500/5 border border-red-500/10 rounded-xl">
+                    <div className="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center">
+                      <AlertTriangle size={18} className="text-red-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">{contact.name}</p>
+                      <p className="text-xs text-gray-500">{contact.company || contact.email || 'Sem empresa'}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className={`text-sm font-semibold ${CHURN_COLORS[contact.churnRisk as keyof typeof CHURN_COLORS] || 'text-red-400'}`}>
+                        Risco Alto
+                      </p>
+                      <p className="text-[10px] text-gray-500">LTV: {formatCurrency(Number(contact.ltv) || 0)}</p>
+                    </div>
+                  </div>
+                ))}
               </div>
-              <Progress value={78} className="h-3" />
-              <p className="text-xs text-muted-foreground mt-1">Baseado em engajamento, satisfação e retenção</p>
-            </div>
-            <div>
-              <div className="flex justify-between mb-2">
-                <span className="text-sm text-muted-foreground">Taxa de Retenção Prevista</span>
-                <span className="font-bold text-emerald-500">92%</span>
-              </div>
-              <Progress value={92} className="h-3" />
-              <p className="text-xs text-muted-foreground mt-1">Próximos 90 dias</p>
-            </div>
-            <div>
-              <div className="flex justify-between mb-2">
-                <span className="text-sm text-muted-foreground">Potencial de Expansão</span>
-                <span className="font-bold text-blue-500">65%</span>
-              </div>
-              <Progress value={65} className="h-3" />
-              <p className="text-xs text-muted-foreground mt-1">Clientes com potencial de upgrade</p>
-            </div>
+            )}
           </div>
-        </CardContent>
-      </Card>
 
-      {/* Insights Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Recompra */}
-        <div className="space-y-4">
-          <h2 className="font-bold text-lg flex items-center gap-2">
-            <ShoppingCart className="w-5 h-5 text-emerald-500" />
-            Oportunidades de Recompra
-          </h2>
-          {recompraInsights.length > 0 ? (
-            recompraInsights.map((insight, i) => (
-              <InsightCard key={i} insight={insight} onAction={() => handleAction(insight)} />
-            ))
-          ) : (
-            <Card>
-              <CardContent className="py-8 text-center text-muted-foreground">
-                Nenhuma oportunidade identificada
-              </CardContent>
-            </Card>
-          )}
-        </div>
+          {/* Repurchase Opportunities */}
+          <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6">
+            <div className="flex items-center gap-2 mb-5">
+              <TrendingUp size={20} className="text-emerald-400" />
+              <h3 className="text-lg font-semibold">Oportunidades de Recompra</h3>
+              <span className="ml-auto text-xs px-2 py-0.5 bg-emerald-500/10 text-emerald-400 rounded-full">{repurchaseOpportunities.length}</span>
+            </div>
 
-        {/* Churn */}
-        <div className="space-y-4">
-          <h2 className="font-bold text-lg flex items-center gap-2">
-            <AlertTriangle className="w-5 h-5 text-red-500" />
-            Alertas de Churn
-          </h2>
-          {churnInsights.length > 0 ? (
-            churnInsights.map((insight, i) => (
-              <InsightCard key={i} insight={insight} onAction={() => handleAction(insight)} />
-            ))
-          ) : (
-            <Card>
-              <CardContent className="py-8 text-center text-muted-foreground">
-                Nenhum risco identificado
-              </CardContent>
-            </Card>
-          )}
+            {repurchaseOpportunities.length === 0 ? (
+              <p className="text-sm text-gray-500 text-center py-6">Nenhuma oportunidade identificada</p>
+            ) : (
+              <div className="space-y-3">
+                {repurchaseOpportunities.map((contact: any) => (
+                  <div key={contact.id} className="flex items-center gap-4 p-4 bg-emerald-500/5 border border-emerald-500/10 rounded-xl">
+                    <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center">
+                      <DollarSign size={18} className="text-emerald-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">{contact.name}</p>
+                      <p className="text-xs text-gray-500">{contact.company || contact.email || 'Sem empresa'}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-semibold text-emerald-400">
+                        {formatCurrency(Number(contact.ltv) || 0)}
+                      </p>
+                      <p className="text-[10px] text-gray-500">
+                        {contact.totalPurchases} compras
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
+      )}
 
-        {/* Upsell */}
-        <div className="space-y-4">
-          <h2 className="font-bold text-lg flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-blue-500" />
-            Potencial de Upsell
-          </h2>
-          {upsellInsights.length > 0 ? (
-            upsellInsights.map((insight, i) => (
-              <InsightCard key={i} insight={insight} onAction={() => handleAction(insight)} />
-            ))
-          ) : (
-            <Card>
-              <CardContent className="py-8 text-center text-muted-foreground">
-                Nenhum potencial identificado
-              </CardContent>
-            </Card>
-          )}
-        </div>
-
-        {/* Follow-up */}
-        <div className="space-y-4">
-          <h2 className="font-bold text-lg flex items-center gap-2">
-            <Clock className="w-5 h-5 text-amber-500" />
-            Follow-ups Necessários
-          </h2>
-          {followupInsights.length > 0 ? (
-            followupInsights.map((insight, i) => (
-              <InsightCard key={i} insight={insight} onAction={() => handleAction(insight)} />
-            ))
-          ) : (
-            <Card>
-              <CardContent className="py-8 text-center text-muted-foreground">
-                Nenhum follow-up pendente
-              </CardContent>
-            </Card>
-          )}
-        </div>
+      {/* Summary */}
+      <div className="bg-gradient-to-r from-indigo-500/10 to-purple-500/10 border border-indigo-500/20 rounded-2xl p-6">
+        <h3 className="text-lg font-semibold mb-2">Como funciona o Vext Radar?</h3>
+        <p className="text-sm text-gray-400 leading-relaxed">
+          O Vext Radar analisa automaticamente seus contatos para identificar riscos de churn (clientes com alta probabilidade de cancelamento)
+          e oportunidades de recompra (clientes com baixo risco de churn que não compram há mais de 30 dias, ordenados por LTV).
+          Use esses insights para priorizar suas ações de retenção e upsell.
+        </p>
       </div>
     </div>
   );

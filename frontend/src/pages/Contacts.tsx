@@ -1,613 +1,155 @@
-import { useState, useRef } from "react";
-import { trpc } from "@/lib/trpc";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { toast } from "sonner";
-import {
-  Plus,
-  Search,
-  Upload,
-  User,
-  Mail,
-  Phone,
-  Building,
-  DollarSign,
-  MoreVertical,
-  Edit,
-  Trash2,
-  AlertTriangle,
-  TrendingUp,
-  Clock,
-} from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { contactService } from '../services';
+import { formatCurrency, formatDate } from '../utils/format';
+import { toast } from 'sonner';
+import Modal from '../components/Modal';
+import { Plus, Search, Edit2, Trash2, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
+import type { Contact } from '../models';
 
-function formatCurrency(value: number) {
-  return new Intl.NumberFormat("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-    minimumFractionDigits: 0,
-  }).format(value);
-}
-
-interface Contact {
-  id: number;
-  name: string;
-  email: string | null;
-  phone: string | null;
-  company: string | null;
-  position: string | null;
-  ownerId: number;
-  source: string | null;
-  notes: string | null;
-  ltv: string | null;
-  averageTicket: string | null;
-  totalPurchases: number | null;
-  lastPurchaseAt: Date | null;
-  bestContactTime: string | null;
-  churnRisk: "low" | "medium" | "high" | null;
-  npsScore: number | null;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-function ContactCard({ contact, onEdit, onDelete }: { contact: Contact; onEdit: () => void; onDelete: () => void }) {
-  return (
-    <Card className="hover:shadow-lg transition-shadow group">
-      <CardContent className="p-5">
-        <div className="flex items-start justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-lg">
-              {contact.name.charAt(0).toUpperCase()}
-            </div>
-            <div>
-              <h3 className="font-bold">{contact.name}</h3>
-              {contact.position && contact.company && (
-                <p className="text-sm text-muted-foreground">
-                  {contact.position} @ {contact.company}
-                </p>
-              )}
-            </div>
-          </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="opacity-0 group-hover:opacity-100 transition-opacity">
-                <MoreVertical className="w-4 h-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={onEdit}>
-                <Edit className="w-4 h-4 mr-2" /> Editar
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={onDelete} className="text-destructive">
-                <Trash2 className="w-4 h-4 mr-2" /> Excluir
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-
-        <div className="space-y-2 text-sm">
-          {contact.email && (
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <Mail className="w-4 h-4" />
-              <span className="truncate">{contact.email}</span>
-            </div>
-          )}
-          {contact.phone && (
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <Phone className="w-4 h-4" />
-              <span>{contact.phone}</span>
-            </div>
-          )}
-          {contact.company && (
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <Building className="w-4 h-4" />
-              <span>{contact.company}</span>
-            </div>
-          )}
-        </div>
-
-        <div className="mt-4 pt-4 border-t border-border grid grid-cols-3 gap-2 text-center">
-          <div>
-            <p className="text-xs text-muted-foreground">LTV</p>
-            <p className="font-bold text-sm">{contact.ltv ? formatCurrency(Number(contact.ltv)) : "-"}</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Ticket Médio</p>
-            <p className="font-bold text-sm">{contact.averageTicket ? formatCurrency(Number(contact.averageTicket)) : "-"}</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Compras</p>
-            <p className="font-bold text-sm">{contact.totalPurchases || 0}</p>
-          </div>
-        </div>
-
-        {contact.churnRisk && contact.churnRisk !== "low" && (
-          <div className="mt-3">
-            <Badge
-              variant={contact.churnRisk === "high" ? "destructive" : "default"}
-              className="w-full justify-center"
-            >
-              <AlertTriangle className="w-3 h-3 mr-1" />
-              Risco de Churn: {contact.churnRisk === "high" ? "Alto" : "Médio"}
-            </Badge>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-function NewContactDialog({ onSuccess }: { onSuccess: () => void }) {
-  const [open, setOpen] = useState(false);
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
-  const [company, setCompany] = useState("");
-  const [position, setPosition] = useState("");
-  const [source, setSource] = useState("");
-  const [notes, setNotes] = useState("");
-
-  const createContact = trpc.contacts.create.useMutation({
-    onSuccess: () => {
-      toast.success("Contato criado com sucesso!");
-      setOpen(false);
-      setName("");
-      setEmail("");
-      setPhone("");
-      setCompany("");
-      setPosition("");
-      setSource("");
-      setNotes("");
-      onSuccess();
-    },
-    onError: (error) => {
-      toast.error(error.message);
-    },
-  });
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name) {
-      toast.error("Nome é obrigatório");
-      return;
-    }
-    createContact.mutate({
-      name,
-      email: email || undefined,
-      phone: phone || undefined,
-      company: company || undefined,
-      position: position || undefined,
-      source: source || undefined,
-      notes: notes || undefined,
-    });
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button className="gap-2">
-          <Plus className="w-4 h-4" />
-          Novo Contato
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>Novo Contato</DialogTitle>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="name">Nome *</Label>
-            <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome completo" />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@exemplo.com" />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="phone">Telefone</Label>
-              <Input id="phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="(11) 99999-9999" />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="company">Empresa</Label>
-              <Input id="company" value={company} onChange={(e) => setCompany(e.target.value)} placeholder="Nome da empresa" />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="position">Cargo</Label>
-              <Input id="position" value={position} onChange={(e) => setPosition(e.target.value)} placeholder="Ex: Diretor" />
-            </div>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="source">Origem</Label>
-            <Select value={source} onValueChange={setSource}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione a origem" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="website">Website</SelectItem>
-                <SelectItem value="referral">Indicação</SelectItem>
-                <SelectItem value="linkedin">LinkedIn</SelectItem>
-                <SelectItem value="event">Evento</SelectItem>
-                <SelectItem value="cold_call">Cold Call</SelectItem>
-                <SelectItem value="other">Outro</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="notes">Observações</Label>
-            <Textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Anotações sobre o contato..." rows={3} />
-          </div>
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={createContact.isPending}>
-              {createContact.isPending ? "Criando..." : "Criar"}
-            </Button>
-          </div>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function ImportCSVDialog({ onSuccess }: { onSuccess: () => void }) {
-  const [open, setOpen] = useState(false);
-  const [csvData, setCsvData] = useState<Array<{ name: string; email?: string; phone?: string; company?: string; position?: string }>>([]);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const bulkImport = trpc.contacts.bulkImport.useMutation({
-    onSuccess: (data) => {
-      toast.success(`${data.imported} contatos importados com sucesso!`);
-      setOpen(false);
-      setCsvData([]);
-      onSuccess();
-    },
-    onError: (error) => {
-      toast.error(error.message);
-    },
-  });
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const text = event.target?.result as string;
-      const lines = text.split("\n");
-      const headers = lines[0].split(",").map((h) => h.trim().toLowerCase());
-
-      const data = lines.slice(1).filter((line) => line.trim()).map((line) => {
-        const values = line.split(",").map((v) => v.trim());
-        const contact: { name: string; email?: string; phone?: string; company?: string; position?: string } = {
-          name: values[headers.indexOf("name")] || values[headers.indexOf("nome")] || "",
-        };
-        const emailIdx = headers.indexOf("email") !== -1 ? headers.indexOf("email") : headers.indexOf("e-mail");
-        if (emailIdx !== -1 && values[emailIdx]) contact.email = values[emailIdx];
-        const phoneIdx = headers.indexOf("phone") !== -1 ? headers.indexOf("phone") : headers.indexOf("telefone");
-        if (phoneIdx !== -1 && values[phoneIdx]) contact.phone = values[phoneIdx];
-        const companyIdx = headers.indexOf("company") !== -1 ? headers.indexOf("company") : headers.indexOf("empresa");
-        if (companyIdx !== -1 && values[companyIdx]) contact.company = values[companyIdx];
-        const positionIdx = headers.indexOf("position") !== -1 ? headers.indexOf("position") : headers.indexOf("cargo");
-        if (positionIdx !== -1 && values[positionIdx]) contact.position = values[positionIdx];
-        return contact;
-      }).filter((c) => c.name);
-
-      setCsvData(data);
-    };
-    reader.readAsText(file);
-  };
-
-  const handleImport = () => {
-    if (csvData.length === 0) {
-      toast.error("Nenhum contato para importar");
-      return;
-    }
-    bulkImport.mutate(csvData);
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline" className="gap-2">
-          <Upload className="w-4 h-4" />
-          Importar CSV
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Importar Contatos via CSV</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4">
-          <div className="p-4 rounded-lg bg-secondary/50 text-sm">
-            <p className="font-medium mb-2">Formato esperado:</p>
-            <code className="text-xs">name,email,phone,company,position</code>
-            <p className="text-muted-foreground mt-2 text-xs">
-              Também aceita: nome, e-mail, telefone, empresa, cargo
-            </p>
-          </div>
-
-          <input
-            type="file"
-            accept=".csv"
-            ref={fileInputRef}
-            onChange={handleFileChange}
-            className="hidden"
-          />
-          <Button
-            variant="outline"
-            className="w-full"
-            onClick={() => fileInputRef.current?.click()}
-          >
-            <Upload className="w-4 h-4 mr-2" />
-            Selecionar arquivo CSV
-          </Button>
-
-          {csvData.length > 0 && (
-            <div className="p-4 rounded-lg border">
-              <p className="font-medium mb-2">{csvData.length} contatos encontrados</p>
-              <div className="max-h-40 overflow-y-auto space-y-1 text-sm">
-                {csvData.slice(0, 5).map((c, i) => (
-                  <div key={i} className="text-muted-foreground">
-                    {c.name} {c.email && `- ${c.email}`}
-                  </div>
-                ))}
-                {csvData.length > 5 && (
-                  <p className="text-muted-foreground">... e mais {csvData.length - 5} contatos</p>
-                )}
-              </div>
-            </div>
-          )}
-
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-              Cancelar
-            </Button>
-            <Button onClick={handleImport} disabled={csvData.length === 0 || bulkImport.isPending}>
-              {bulkImport.isPending ? "Importando..." : `Importar ${csvData.length} contatos`}
-            </Button>
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function EditContactDialog({ contact, open, onOpenChange, onSuccess }: {
-  contact: Contact;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onSuccess: () => void;
-}) {
-  const [name, setName] = useState(contact.name);
-  const [email, setEmail] = useState(contact.email || "");
-  const [phone, setPhone] = useState(contact.phone || "");
-  const [company, setCompany] = useState(contact.company || "");
-  const [position, setPosition] = useState(contact.position || "");
-  const [notes, setNotes] = useState(contact.notes || "");
-  const [ltv, setLtv] = useState(contact.ltv || "");
-  const [averageTicket, setAverageTicket] = useState(contact.averageTicket || "");
-  const [npsScore, setNpsScore] = useState(contact.npsScore?.toString() || "");
-  const [churnRisk, setChurnRisk] = useState<"low" | "medium" | "high">(contact.churnRisk || "low");
-
-  const updateContact = trpc.contacts.update.useMutation({
-    onSuccess: () => {
-      toast.success("Contato atualizado!");
-      onOpenChange(false);
-      onSuccess();
-    },
-    onError: (error) => {
-      toast.error(error.message);
-    },
-  });
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    updateContact.mutate({
-      id: contact.id,
-      name,
-      email: email || undefined,
-      phone: phone || undefined,
-      company: company || undefined,
-      position: position || undefined,
-      notes: notes || undefined,
-      ltv: ltv ? Number(ltv) : undefined,
-      averageTicket: averageTicket ? Number(averageTicket) : undefined,
-      npsScore: npsScore ? Number(npsScore) : undefined,
-      churnRisk: churnRisk as "low" | "medium" | "high",
-    });
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Editar Contato</DialogTitle>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label>Nome</Label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Email</Label>
-              <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label>Telefone</Label>
-              <Input value={phone} onChange={(e) => setPhone(e.target.value)} />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Empresa</Label>
-              <Input value={company} onChange={(e) => setCompany(e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label>Cargo</Label>
-              <Input value={position} onChange={(e) => setPosition(e.target.value)} />
-            </div>
-          </div>
-
-          <div className="p-4 rounded-lg bg-secondary/50 space-y-4">
-            <p className="text-sm font-medium">Métricas do Cliente</p>
-            <div className="grid grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label className="text-xs">LTV (R$)</Label>
-                <Input type="number" value={ltv} onChange={(e) => setLtv(e.target.value)} placeholder="0" />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-xs">Ticket Médio (R$)</Label>
-                <Input type="number" value={averageTicket} onChange={(e) => setAverageTicket(e.target.value)} placeholder="0" />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-xs">NPS (0-10)</Label>
-                <Input type="number" min="0" max="10" value={npsScore} onChange={(e) => setNpsScore(e.target.value)} placeholder="0" />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label className="text-xs">Risco de Churn</Label>
-              <Select value={churnRisk} onValueChange={(v) => setChurnRisk(v as "low" | "medium" | "high")}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="low">Baixo</SelectItem>
-                  <SelectItem value="medium">Médio</SelectItem>
-                  <SelectItem value="high">Alto</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Observações</Label>
-            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} />
-          </div>
-
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={updateContact.isPending}>
-              {updateContact.isPending ? "Salvando..." : "Salvar"}
-            </Button>
-          </div>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-}
+const CHURN_COLORS = { low: 'text-emerald-400 bg-emerald-400/10', medium: 'text-yellow-400 bg-yellow-400/10', high: 'text-red-400 bg-red-400/10' };
+const CHURN_LABELS = { low: 'Baixo', medium: 'Médio', high: 'Alto' };
 
 export default function Contacts() {
-  const [searchQuery, setSearchQuery] = useState("");
-  const [editingContact, setEditingContact] = useState<Contact | null>(null);
+  const qc = useQueryClient();
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [showModal, setShowModal] = useState(false);
+  const [editing, setEditing] = useState<Contact | null>(null);
+  const [form, setForm] = useState({ name: '', email: '', phone: '', company: '', position: '', source: '' });
 
-  const { data: contacts, isLoading, refetch } = trpc.contacts.list.useQuery();
-  const { data: searchResults } = trpc.contacts.search.useQuery(
-    { query: searchQuery },
-    { enabled: searchQuery.length > 2 }
-  );
-
-  const deleteContact = trpc.contacts.delete.useMutation({
-    onSuccess: () => {
-      toast.success("Contato excluído!");
-      refetch();
-    },
+  const { data: result, isLoading } = useQuery({
+    queryKey: ['contacts', search, page],
+    queryFn: () => contactService.list(search || undefined, page),
   });
 
-  const displayContacts = searchQuery.length > 2 ? searchResults : contacts;
+  const contacts = (result?.data || []) as Contact[];
+  const pagination = result?.pagination;
 
-  if (isLoading) {
-    return (
-      <div className="space-y-6">
-        <div className="flex justify-between items-center">
-          <Skeleton className="h-10 w-64" />
-          <Skeleton className="h-10 w-40" />
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {[...Array(6)].map((_, i) => (
-            <Skeleton key={i} className="h-64 rounded-xl" />
-          ))}
-        </div>
-      </div>
-    );
-  }
+  const createMut = useMutation({
+    mutationFn: (data: any) => contactService.create(data),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['contacts'] }); closeModal(); toast.success('Contato criado!'); },
+    onError: (err: any) => toast.error(err.response?.data?.message || 'Erro'),
+  });
+
+  const updateMut = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: any }) => contactService.update(id, data),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['contacts'] }); closeModal(); toast.success('Contato atualizado!'); },
+    onError: (err: any) => toast.error(err.response?.data?.message || 'Erro'),
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: (id: number) => contactService.delete(id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['contacts'] }); toast.success('Contato removido!'); },
+  });
+
+  const openCreate = () => { setEditing(null); setForm({ name: '', email: '', phone: '', company: '', position: '', source: '' }); setShowModal(true); };
+  const openEdit = (c: Contact) => { setEditing(c); setForm({ name: c.name, email: c.email || '', phone: c.phone || '', company: c.company || '', position: c.position || '', source: c.source || '' }); setShowModal(true); };
+  const closeModal = () => { setShowModal(false); setEditing(null); };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const data = { ...form, email: form.email || null, phone: form.phone || null, company: form.company || null, position: form.position || null, source: form.source || null };
+    if (editing) updateMut.mutate({ id: editing.id, data });
+    else createMut.mutate(data);
+  };
 
   return (
-    <div>
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+    <div className="space-y-6">
+      <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Clientes</h1>
-          <p className="text-muted-foreground">{contacts?.length || 0} contatos cadastrados</p>
+          <h1 className="text-2xl font-bold">Contatos</h1>
+          <p className="text-gray-500 mt-1">{pagination?.total || 0} registros</p>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar contatos..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 w-64"
-            />
-          </div>
-          <ImportCSVDialog onSuccess={refetch} />
-          <NewContactDialog onSuccess={refetch} />
-        </div>
+        <button onClick={openCreate} className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 rounded-xl text-sm font-medium transition">
+          <Plus size={16} /> Novo Contato
+        </button>
       </div>
 
-      {displayContacts && displayContacts.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {displayContacts.map((contact) => (
-            <ContactCard
-              key={contact.id}
-              contact={contact}
-              onEdit={() => setEditingContact(contact)}
-              onDelete={() => {
-                if (confirm("Tem certeza que deseja excluir este contato?")) {
-                  deleteContact.mutate({ id: contact.id });
-                }
-              }}
-            />
-          ))}
-        </div>
-      ) : (
-        <Card>
-          <CardContent className="py-16 text-center">
-            <User className="w-12 h-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-            <h3 className="font-bold text-lg mb-2">Nenhum contato encontrado</h3>
-            <p className="text-muted-foreground mb-4">
-              {searchQuery ? "Tente uma busca diferente" : "Comece adicionando seu primeiro contato"}
-            </p>
-            {!searchQuery && <NewContactDialog onSuccess={refetch} />}
-          </CardContent>
-        </Card>
-      )}
+      {/* Search */}
+      <div className="relative">
+        <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" />
+        <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} placeholder="Buscar por nome, email ou empresa..."
+          className="w-full pl-11 pr-4 py-2.5 bg-gray-900 border border-gray-800 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+      </div>
 
-      {editingContact && (
-        <EditContactDialog
-          contact={editingContact}
-          open={!!editingContact}
-          onOpenChange={(open) => !open && setEditingContact(null)}
-          onSuccess={refetch}
-        />
-      )}
+      {/* Table */}
+      <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-gray-500 border-b border-gray-800">
+                <th className="px-6 py-3 font-medium">Nome</th>
+                <th className="px-6 py-3 font-medium hidden md:table-cell">Empresa</th>
+                <th className="px-6 py-3 font-medium hidden lg:table-cell">Email</th>
+                <th className="px-6 py-3 font-medium">Churn</th>
+                <th className="px-6 py-3 font-medium hidden lg:table-cell">LTV</th>
+                <th className="px-6 py-3 font-medium">Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              {isLoading ? (
+                <tr><td colSpan={6} className="px-6 py-12 text-center text-gray-500">Carregando...</td></tr>
+              ) : contacts.length === 0 ? (
+                <tr><td colSpan={6} className="px-6 py-12 text-center text-gray-500">Nenhum contato encontrado</td></tr>
+              ) : contacts.map((c) => (
+                <tr key={c.id} className="border-b border-gray-800/50 hover:bg-gray-800/30 transition">
+                  <td className="px-6 py-3">
+                    <p className="font-medium">{c.name}</p>
+                    <p className="text-xs text-gray-500">{c.position}</p>
+                  </td>
+                  <td className="px-6 py-3 hidden md:table-cell text-gray-400">{c.company || '-'}</td>
+                  <td className="px-6 py-3 hidden lg:table-cell text-gray-400">{c.email || '-'}</td>
+                  <td className="px-6 py-3">
+                    <span className={`text-xs px-2 py-1 rounded-full font-medium ${CHURN_COLORS[c.churnRisk]}`}>
+                      {c.churnRisk === 'high' && <AlertCircle size={10} className="inline mr-1" />}
+                      {CHURN_LABELS[c.churnRisk]}
+                    </span>
+                  </td>
+                  <td className="px-6 py-3 hidden lg:table-cell text-gray-400">{formatCurrency(Number(c.ltv) || 0)}</td>
+                  <td className="px-6 py-3">
+                    <div className="flex gap-2">
+                      <button onClick={() => openEdit(c)} className="text-gray-400 hover:text-indigo-400 transition"><Edit2 size={16} /></button>
+                      <button onClick={() => { if (confirm('Remover contato?')) deleteMut.mutate(c.id); }} className="text-gray-400 hover:text-red-400 transition"><Trash2 size={16} /></button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Pagination */}
+        {pagination && pagination.totalPages > 1 && (
+          <div className="flex items-center justify-between px-6 py-3 border-t border-gray-800">
+            <span className="text-xs text-gray-500">Página {pagination.page} de {pagination.totalPages}</span>
+            <div className="flex gap-2">
+              <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={!pagination.hasPrev}
+                className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 disabled:opacity-30 transition"><ChevronLeft size={16} /></button>
+              <button onClick={() => setPage((p) => p + 1)} disabled={!pagination.hasNext}
+                className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 disabled:opacity-30 transition"><ChevronRight size={16} /></button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Modal */}
+      <Modal open={showModal} onClose={closeModal} title={editing ? 'Editar Contato' : 'Novo Contato'}>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {['name', 'email', 'phone', 'company', 'position', 'source'].map((field) => (
+            <div key={field}>
+              <label className="block text-sm text-gray-400 mb-1 capitalize">{field === 'name' ? 'Nome *' : field === 'phone' ? 'Telefone' : field === 'company' ? 'Empresa' : field === 'position' ? 'Cargo' : field === 'source' ? 'Origem' : 'Email'}</label>
+              <input value={(form as any)[field]} onChange={(e) => setForm({ ...form, [field]: e.target.value })}
+                required={field === 'name'} type={field === 'email' ? 'email' : 'text'}
+                className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            </div>
+          ))}
+          <button type="submit" disabled={createMut.isPending || updateMut.isPending}
+            className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 rounded-xl font-semibold transition disabled:opacity-50">
+            {(createMut.isPending || updateMut.isPending) ? 'Salvando...' : editing ? 'Atualizar' : 'Criar'}
+          </button>
+        </form>
+      </Modal>
     </div>
   );
 }

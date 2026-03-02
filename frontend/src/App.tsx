@@ -1,95 +1,56 @@
-import { Toaster } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import NotFound from "@/pages/NotFound";
-import { Route, Switch } from "wouter";
-import ErrorBoundary from "./components/ErrorBoundary";
-import { ThemeProvider } from "./contexts/ThemeContext";
-import Home from "./pages/Home";
-import Dashboard from "./pages/Dashboard";
-import Pipeline from "./pages/Pipeline";
-import Contacts from "./pages/Contacts";
-import Calendar from "./pages/Calendar";
-import Products from "./pages/Products";
-import LandingPages from "./pages/LandingPages";
-import Team from "./pages/Team";
-import Tags from "./pages/Tags";
-import Academy from "./pages/Academy";
-import LandingPageView from "./pages/LandingPageView";
-import VextRadar from "./pages/VextRadar";
-import CRMLayout from "./components/CRMLayout";
+import { useEffect } from 'react';
+import { Routes, Route, Navigate } from 'react-router-dom';
+import { Toaster } from 'sonner';
+import { useAppStore } from './stores/useAppStore';
+import Login from './pages/Login';
+import Register from './pages/Register';
+import Dashboard from './pages/Dashboard';
+import Pipeline from './pages/Pipeline';
+import Contacts from './pages/Contacts';
+import Calendar from './pages/Calendar';
+import Products from './pages/Products';
+import LandingPages from './pages/LandingPages';
+import Team from './pages/Team';
+import Tags from './pages/Tags';
+import VextRadar from './pages/VextRadar';
+import NotFound from './pages/NotFound';
+import CRMLayout from './components/CRMLayout';
 
-function Router() {
-  return (
-    <Switch>
-      <Route path="/" component={Home} />
-      <Route path="/lp/:slug" component={LandingPageView} />
-      <Route path="/dashboard">
-        <CRMLayout>
-          <Dashboard />
-        </CRMLayout>
-      </Route>
-      <Route path="/pipeline">
-        <CRMLayout>
-          <Pipeline />
-        </CRMLayout>
-      </Route>
-      <Route path="/contacts">
-        <CRMLayout>
-          <Contacts />
-        </CRMLayout>
-      </Route>
-      <Route path="/calendar">
-        <CRMLayout>
-          <Calendar />
-        </CRMLayout>
-      </Route>
-      <Route path="/products">
-        <CRMLayout>
-          <Products />
-        </CRMLayout>
-      </Route>
-      <Route path="/landing-pages">
-        <CRMLayout>
-          <LandingPages />
-        </CRMLayout>
-      </Route>
-      <Route path="/team">
-        <CRMLayout>
-          <Team />
-        </CRMLayout>
-      </Route>
-      <Route path="/tags">
-        <CRMLayout>
-          <Tags />
-        </CRMLayout>
-      </Route>
-      <Route path="/academy">
-        <CRMLayout>
-          <Academy />
-        </CRMLayout>
-      </Route>
-      <Route path="/vext-radar">
-        <CRMLayout>
-          <VextRadar />
-        </CRMLayout>
-      </Route>
-      <Route path="/404" component={NotFound} />
-      <Route component={NotFound} />
-    </Switch>
-  );
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated } = useAppStore();
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return <CRMLayout>{children}</CRMLayout>;
 }
 
-function App() {
+export default function App() {
+  const initAuth = useAppStore((s) => s.initAuth);
+
+  useEffect(() => { initAuth(); }, []);
+
   return (
-    <ErrorBoundary>
-      <ThemeProvider defaultTheme="dark" switchable>
-        <TooltipProvider>
-          <Toaster />
-          <Router />
-        </TooltipProvider>
-      </ThemeProvider>
-    </ErrorBoundary>
+    <>
+      <Toaster richColors position="top-right" />
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+        <Route path="/pipeline" element={<ProtectedRoute><Pipeline /></ProtectedRoute>} />
+        <Route path="/contacts" element={<ProtectedRoute><Contacts /></ProtectedRoute>} />
+        <Route path="/calendar" element={<ProtectedRoute><Calendar /></ProtectedRoute>} />
+        <Route path="/products" element={<ProtectedRoute><Products /></ProtectedRoute>} />
+        <Route path="/landing-pages" element={<ProtectedRoute><LandingPages /></ProtectedRoute>} />
+        <Route path="/team" element={<ProtectedRoute><Team /></ProtectedRoute>} />
+        <Route path="/tags" element={<ProtectedRoute><Tags /></ProtectedRoute>} />
+        <Route path="/vext-radar" element={<ProtectedRoute><VextRadar /></ProtectedRoute>} />
+
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    </>
   );
 }
-
-export default App;
