@@ -1,0 +1,14 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "Vext CRM — Homologação",
+      "Group": "Servers",
+      "Host": "postgres_hml",
+      "Port": 5432,
+      "MaintenanceDB": "vextcrm_hml",
+      "Username": "vext_hml",
+      "SSLMode": "prefer",
+      "Comment": "PostgreSQL de homologação do Vext CRM v2.1.0"
+    }
+  }
+}

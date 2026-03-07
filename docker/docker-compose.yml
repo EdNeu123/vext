@@ -1,0 +1,76 @@
+# ============================================================
+#  Vext CRM — docker-compose Homologação
+#  Orquestra: PostgreSQL + pgAdmin (opcional)
+# ============================================================
+
+services:
+  # ─────────────────────────────────────────────
+  #  Banco de Dados — PostgreSQL 16
+  # ─────────────────────────────────────────────
+  postgres_hml:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: vextcrm_postgres_hml
+    restart: unless-stopped
+    env_file:
+      - .env.hml
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-vext_hml}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-vext_hml_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-vextcrm_hml}
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"     # 5433 local → 5432 container
+    volumes:
+      - postgres_hml_data:/var/lib/postgresql/data/pgdata
+      - ./init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - vext_hml_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-vext_hml} -d ${POSTGRES_DB:-vextcrm_hml}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  # ─────────────────────────────────────────────
+  #  pgAdmin 4 — Interface gráfica (opcional)
+  #  Acesse: http://localhost:5050
+  # ─────────────────────────────────────────────
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: vextcrm_pgadmin_hml
+    restart: unless-stopped
+    depends_on:
+      postgres_hml:
+        condition: service_healthy
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@vextcrm.hml}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin123}
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+    ports:
+      - "${PGADMIN_PORT:-5050}:80"
+    volumes:
+      - pgadmin_hml_data:/var/lib/pgadmin
+      - ./pgadmin/servers.json:/pgadmin4/servers.json:ro
+    networks:
+      - vext_hml_network
+    profiles:
+      - pgadmin     # Ativado apenas com: docker compose --profile pgadmin up
+
+# ─────────────────────────────────────────────
+#  Volumes nomeados — dados persistidos no host
+# ─────────────────────────────────────────────
+volumes:
+  postgres_hml_data:
+    name: vextcrm_postgres_hml_data
+  pgadmin_hml_data:
+    name: vextcrm_pgadmin_hml_data
+
+# ─────────────────────────────────────────────
+#  Rede isolada para os serviços de homologação
+# ─────────────────────────────────────────────
+networks:
+  vext_hml_network:
+    name: vext_hml_network
+    driver: bridge
