@@ -1,0 +1,50 @@
+###############################################
+# Vext CRM v2.1 — Ambiente Local (Docker)
+# Uso: docker compose -f docker/docker-compose.yml up -d
+###############################################
+
+services:
+  # ── PostgreSQL ──────────────────────────────
+  vext-postgres:
+    image: postgres:16-alpine
+    container_name: vext-postgres
+    restart: unless-stopped
+    ports:
+      - "${DOCKER_PG_PORT:-5433}:5432"
+    environment:
+      POSTGRES_USER: ${DOCKER_PG_USER:-vext}
+      POSTGRES_PASSWORD: ${DOCKER_PG_PASSWORD:-vext123}
+      POSTGRES_DB: ${DOCKER_PG_DB:-vext_crm}
+    volumes:
+      - vext_pgdata:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+      - ./postgresql.conf:/etc/postgresql/postgresql.conf:ro
+    command: postgres -c config_file=/etc/postgresql/postgresql.conf
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DOCKER_PG_USER:-vext} -d ${DOCKER_PG_DB:-vext_crm}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ── pgAdmin ─────────────────────────────────
+  vext-pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: vext-pgadmin
+    restart: unless-stopped
+    ports:
+      - "${DOCKER_PGADMIN_PORT:-5050}:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${DOCKER_PGADMIN_EMAIL:-admin@vext.com.br}
+      PGADMIN_DEFAULT_PASSWORD: ${DOCKER_PGADMIN_PASSWORD:-admin123}
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+    volumes:
+      - vext_pgadmin:/var/lib/pgadmin
+    depends_on:
+      vext-postgres:
+        condition: service_healthy
+
+volumes:
+  vext_pgdata:
+    name: vext_pgdata
+  vext_pgadmin:
+    name: vext_pgadmin
