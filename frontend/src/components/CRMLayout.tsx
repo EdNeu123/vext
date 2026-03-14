@@ -4,7 +4,7 @@ import { useAppStore } from '../stores/useAppStore';
 import { formatRelative } from '../utils/format';
 import {
   LayoutDashboard, GitBranch, Users, CalendarDays,
-  Package, FileText, UsersRound, Tag, Radar,
+  Package, FileText, User2, Tag, Radar,
   Menu, X, LogOut, Bell, Check,
 } from 'lucide-react';
 
@@ -15,7 +15,7 @@ const NAV_ITEMS = [
   { path: '/calendar', label: 'Agenda', icon: CalendarDays },
   { path: '/products', label: 'Produtos', icon: Package },
   { path: '/landing-pages', label: 'Landing Pages', icon: FileText },
-  { path: '/team', label: 'Equipe', icon: UsersRound },
+  { path: '/team', label: 'Equipe', icon: User2 },
   { path: '/tags', label: 'Tags', icon: Tag },
   { path: '/vext-radar', label: 'Vext Radar', icon: Radar },
 ];
