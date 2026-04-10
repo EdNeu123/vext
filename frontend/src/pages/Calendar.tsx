@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { taskService, contactService, dealService } from '../services';
+import { taskService, contactService, cardService } from '../services';
 import { formatDateTime } from '../utils/format';
 import { toast } from 'sonner';
-import Modal from '../components/Modal';
+import Modal from '../components/ui/Modal';
 import { Plus, Check, Clock, Phone, Mail, Users, MoreHorizontal, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { Task } from '../models';
 
@@ -15,18 +15,18 @@ export default function Calendar() {
   const qc = useQueryClient();
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [showModal, setShowModal] = useState(false);
-  const [form, setForm] = useState({ title: '', description: '', type: 'other', priority: 'medium', dueDate: '', contactId: '', dealId: '' });
+  const [form, setForm] = useState({ title: '', description: '', type: 'other', priority: 'medium', dueDate: '', contactId: '', cardId: '' });
 
   const { data: tasks } = useQuery({
     queryKey: ['tasks-by-date', selectedDate],
     queryFn: () => taskService.getByDate(selectedDate),
   });
   const { data: contacts } = useQuery({ queryKey: ['contacts-mini'], queryFn: () => contactService.list('', 1, 100) });
-  const { data: deals } = useQuery({ queryKey: ['deals-mini'], queryFn: () => dealService.list(1, 100) });
+  const { data: cards } = useQuery({ queryKey: ['cards-mini'], queryFn: () => cardService.list(1, 100) });
 
   const taskList = (tasks || []) as Task[];
   const contactList = (contacts?.data || []) as any[];
-  const dealList = (deals?.data || []) as any[];
+  const cardList = (cards?.data || []) as any[];
 
   const createMut = useMutation({
     mutationFn: (data: any) => taskService.create(data),
@@ -41,10 +41,16 @@ export default function Calendar() {
 
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
-    const data: any = { title: form.title, type: form.type, priority: form.priority, dueDate: new Date(form.dueDate).toISOString() };
+    // Garante formato ISO válido — datetime-local retorna "YYYY-MM-DDTHH:mm" sem segundos
+    const parsedDate = form.dueDate ? new Date(form.dueDate.length === 16 ? form.dueDate + ':00' : form.dueDate) : null;
+    if (!parsedDate || isNaN(parsedDate.getTime())) {
+      toast.error('Data/Hora inválida');
+      return;
+    }
+    const data: any = { title: form.title, type: form.type, priority: form.priority, dueDate: parsedDate.toISOString() };
     if (form.description) data.description = form.description;
     if (form.contactId) data.contactId = parseInt(form.contactId);
-    if (form.dealId) data.dealId = parseInt(form.dealId);
+    if (form.cardId) data.cardId = parseInt(form.cardId);
     createMut.mutate(data);
   };
 
@@ -97,7 +103,7 @@ export default function Calendar() {
                     <span className="flex items-center gap-1"><Icon size={12} /> {task.type}</span>
                     <span>{formatDateTime(task.dueDate)}</span>
                     {task.contact && <span>→ {task.contact.name}</span>}
-                    {task.deal && <span>• {task.deal.title}</span>}
+                    {task.card && <span>• {task.card.title}</span>}
                   </div>
                 </div>
                 <span className={`text-xs px-2 py-1 rounded-full ${STATUS_COLORS[task.status]}`}>{task.status}</span>
@@ -152,11 +158,11 @@ export default function Calendar() {
               </select>
             </div>
             <div>
-              <label className="block text-sm text-gray-400 mb-1">Deal</label>
-              <select value={form.dealId} onChange={(e) => setForm({ ...form, dealId: e.target.value })}
+              <label className="block text-sm text-gray-400 mb-1">Card</label>
+              <select value={form.cardId} onChange={(e) => setForm({ ...form, cardId: e.target.value })}
                 className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-xl text-white">
                 <option value="">Nenhum</option>
-                {dealList.map((d: any) => <option key={d.id} value={d.id}>{d.title}</option>)}
+                {cardList.map((c: any) => <option key={c.id} value={c.id}>{c.title}</option>)}
               </select>
             </div>
           </div>

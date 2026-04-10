@@ -1,4 +1,4 @@
-import { prisma } from '../config/database';
+import { prisma } from '../config/prisma';
 import { ApiError } from '../utils/helpers';
 import type { CreateContactInput, UpdateContactInput } from '../models/schemas';
 
@@ -34,7 +34,7 @@ export class ContactService {
       where: { id },
       include: {
         owner: { select: { id: true, name: true, email: true } },
-        deals: { select: { id: true, title: true, value: true, stage: true } },
+        cards: { select: { id: true, title: true, value: true, stage: true } },
       },
     });
     if (!contact) throw ApiError.notFound('Contato não encontrado');

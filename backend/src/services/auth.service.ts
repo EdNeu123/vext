@@ -1,11 +1,11 @@
 import bcrypt from 'bcryptjs';
-import { prisma } from '../config/database';
+import { prisma } from '../config/prisma';
 import {
   generateAccessToken,
   generateRefreshToken,
   rotateRefreshToken,
   revokeAllRefreshTokens,
-} from '../middlewares/auth.middleware';
+} from '../utils/jwt';
 import { ApiError } from '../utils/helpers';
 import type { LoginInput, RegisterInput } from '../models/schemas';
 
@@ -30,6 +30,7 @@ export class AuthService {
     const accessToken = generateAccessToken({
       userId: user.id,
       email: user.email,
+      name: user.name,
       role: user.role,
     });
 
@@ -73,6 +74,7 @@ export class AuthService {
     const accessToken = generateAccessToken({
       userId: user.id,
       email: user.email,
+      name: user.name,
       role: user.role,
     });
 

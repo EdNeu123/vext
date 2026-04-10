@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { productService } from '../services';
 import { formatCurrency } from '../utils/format';
 import { toast } from 'sonner';
-import Modal from '../components/Modal';
+import Modal from '../components/ui/Modal';
 import { Plus, Edit2, Trash2 } from 'lucide-react';
 import type { Product } from '../models';
 

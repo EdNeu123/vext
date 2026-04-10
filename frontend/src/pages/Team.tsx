@@ -3,13 +3,14 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { teamService, inviteService } from '../services';
 import { formatCurrency, formatRelative } from '../utils/format';
 import { toast } from 'sonner';
-import Modal from '../components/Modal';
-import { useAppStore } from '../stores/useAppStore';
+import Modal from '../components/ui/Modal';
+import { useAppStore } from '../store/authStore';
 import { Plus, Trophy, Copy, UserX, Crown, Shield } from 'lucide-react';
+import DevBanner from '../components/ui/DevBanner';
 
 export default function Team() {
   const qc = useQueryClient();
-  const user = useAppStore((s) => s.user);
+  const user = useAuthStore((s) => s.user);
   const isAdmin = user?.role === 'admin';
 
   const { data: members } = useQuery({ queryKey: ['team'], queryFn: () => teamService.list() });
@@ -41,6 +42,7 @@ export default function Team() {
 
   return (
     <div className="space-y-6">
+      <DevBanner />
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Equipe</h1>
@@ -101,7 +103,7 @@ export default function Team() {
                 </div>
                 <div className="text-right">
                   <p className="text-sm font-bold text-emerald-400">{formatCurrency(s.totalValue)}</p>
-                  <p className="text-[10px] text-gray-500">{s.dealsCount} deals</p>
+                  <p className="text-[10px] text-gray-500">{s.dealsCount} cards</p>
                 </div>
               </div>
             ))}

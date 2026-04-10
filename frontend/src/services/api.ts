@@ -39,12 +39,17 @@ api.interceptors.response.use(
     const originalRequest = error.config as any;
 
     // Se 401 e não é retry nem rota de auth
+    // _retryCount evita loop infinito caso o servidor retorne 401 no próprio refresh
+    originalRequest._retryCount = (originalRequest._retryCount ?? 0);
     if (
       error.response?.status === 401 &&
       !originalRequest._retry &&
+      originalRequest._retryCount < 1 &&
       !originalRequest.url?.includes('/auth/login') &&
-      !originalRequest.url?.includes('/auth/refresh')
+      !originalRequest.url?.includes('/auth/refresh') &&
+      !originalRequest.url?.includes('/auth/logout')
     ) {
+      originalRequest._retryCount += 1;
       if (isRefreshing) {
         // Enfileira a requisição para refazer após refresh
         return new Promise((resolve, reject) => {

@@ -1,14 +1,14 @@
-import { prisma } from '../config/database';
+import { prisma } from '../config/prisma';
 
 export class DashboardService {
   async getMetrics(userId: number, role: string) {
     const where = role !== 'admin' ? { ownerId: userId } : {};
-    const deals = await prisma.deal.findMany({ where });
+    const cards = await prisma.card.findMany({ where });
 
     const toNum = (v: any) => Number(v || 0);
-    const won = deals.filter((d) => d.stage === 'won');
-    const lost = deals.filter((d) => d.stage === 'lost');
-    const active = deals.filter((d) => !['won', 'lost'].includes(d.stage));
+    const won = cards.filter((d) => d.stage === 'won');
+    const lost = cards.filter((d) => d.stage === 'lost');
+    const active = cards.filter((d) => !['won', 'lost'].includes(d.stage));
     const closed = won.length + lost.length;
 
     const contactCount = await prisma.contact.count(role !== 'admin' ? { where: { ownerId: userId } } : {});
@@ -30,7 +30,7 @@ export class DashboardService {
 
   async getGoalProgress(userId: number) {
     const user = await prisma.user.findUnique({ where: { id: userId } });
-    const wonDeals = await prisma.deal.findMany({
+    const wonDeals = await prisma.card.findMany({
       where: { ownerId: userId, stage: 'won' },
     });
 
@@ -53,7 +53,7 @@ export class DashboardService {
       orderBy: { dueDate: 'asc' },
       include: {
         contact: { select: { id: true, name: true } },
-        deal: { select: { id: true, title: true } },
+        card: { select: { id: true, title: true } },
       },
     });
   }

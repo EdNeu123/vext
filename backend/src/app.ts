@@ -26,9 +26,25 @@ app.use(cors({
 }));
 
 // Rate limiting
+// Auth endpoints: limite restrito por IP (brute-force protection)
+app.use('/api/auth/login',    rateLimit({ windowMs: 15 * 60 * 1000, max: 20, message: { success: false, message: 'Muitas tentativas de login. Tente em 15 minutos.' }, standardHeaders: true, legacyHeaders: false }));
+app.use('/api/auth/register', rateLimit({ windowMs: 60 * 60 * 1000, max: 10, message: { success: false, message: 'Muitas tentativas de registro.' }, standardHeaders: true, legacyHeaders: false }));
+
+// Demais rotas: limite por userId (evita bloquear todos os users do mesmo IP)
 app.use('/api', rateLimit({
   windowMs: env.RATE_LIMIT_WINDOW_MS,
   max: env.RATE_LIMIT_MAX,
+  keyGenerator: (req: any) => {
+    const auth = req.headers.authorization as string | undefined;
+    if (auth?.startsWith('Bearer ')) {
+      try {
+        const payload = JSON.parse(Buffer.from(auth.slice(7).split('.')[1], 'base64').toString());
+        if (payload?.userId) return ;
+      } catch {}
+    }
+    return req.ip ?? 'unknown';
+  },
+  skip: (req: any) => req.path.includes('/auth/login') || req.path.includes('/auth/register'),
   message: { success: false, message: 'Muitas requisições. Tente novamente mais tarde.' },
   standardHeaders: true,
   legacyHeaders: false,

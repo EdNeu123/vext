@@ -2,9 +2,10 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { tagService } from '../services';
 import { toast } from 'sonner';
-import Modal from '../components/Modal';
+import Modal from '../components/ui/Modal';
 import { Plus, Edit2, Trash2, Tag as TagIcon } from 'lucide-react';
 import type { Tag } from '../models';
+import DevBanner from '../components/ui/DevBanner';
 
 const DEFAULT_COLORS = ['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
 
@@ -44,10 +45,11 @@ export default function Tags() {
 
   return (
     <div className="space-y-6">
+      <DevBanner />
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Tags</h1>
-          <p className="text-gray-500 mt-1">Gerencie as tags dos seus deals</p>
+          <p className="text-gray-500 mt-1">Gerencie as tags dos seus cards</p>
         </div>
         <button onClick={openCreate} className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 rounded-xl text-sm font-medium transition">
           <Plus size={16} /> Nova Tag

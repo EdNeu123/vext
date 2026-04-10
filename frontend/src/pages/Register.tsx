@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
-import { useAppStore } from '../stores/useAppStore';
+import { useAppStore } from '../store/authStore';
 import { toast } from 'sonner';
 
 export default function Register() {
   const navigate = useNavigate();
-  const register = useAppStore((s) => s.register);
+  const register = useAuthStore((s) => s.register);
   const [searchParams] = useSearchParams();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');

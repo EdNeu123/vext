@@ -1,4 +1,4 @@
-import { prisma } from '../config/database';
+import { prisma } from '../config/prisma';
 import { nanoid } from 'nanoid';
 import { ApiError } from '../utils/helpers';
 import { auditService } from './audit.service';

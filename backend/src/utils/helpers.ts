@@ -63,9 +63,9 @@ export function extractPagination(query: Record<string, any>): { page: number; l
 }
 
 /**
- * Calcula probabilidade do deal com base no BANT
+ * Calcula probabilidade do card com base no BANT
  */
-export function calculateDealProbability(deal: {
+export function calculateDealProbability(card: {
   stage: string;
   budgetConfirmed?: boolean | null;
   decisionMakerIdentified?: boolean | null;
@@ -81,12 +81,12 @@ export function calculateDealProbability(deal: {
     lost: 0,
   };
 
-  let probability = stageProbabilities[deal.stage] ?? 10;
+  let probability = stageProbabilities[card.stage] ?? 10;
 
-  if (deal.budgetConfirmed) probability += 5;
-  if (deal.decisionMakerIdentified) probability += 5;
-  if (deal.painPoints && deal.painPoints.length > 10) probability += 5;
-  if (deal.timeline) probability += 5;
+  if (card.budgetConfirmed) probability += 5;
+  if (card.decisionMakerIdentified) probability += 5;
+  if (card.painPoints && card.painPoints.length > 10) probability += 5;
+  if (card.timeline) probability += 5;
 
   return Math.min(probability, 100);
 }
