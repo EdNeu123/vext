@@ -1,4 +1,4 @@
-import { prisma } from '../config/database';
+import { prisma } from '../config/prisma';
 import { auditService } from './audit.service';
 
 export class TeamService {
@@ -27,7 +27,7 @@ export class TeamService {
       select: { id: true, name: true, email: true, avatar: true, salesGoal: true },
     });
 
-    const wonDeals = await prisma.deal.findMany({ where: { stage: 'won' } });
+    const wonDeals = await prisma.card.findMany({ where: { stage: 'won' } });
 
     return sellers
       .map((seller) => {

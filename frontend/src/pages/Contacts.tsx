@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { contactService } from '../services';
 import { formatCurrency, formatDate } from '../utils/format';
 import { toast } from 'sonner';
-import Modal from '../components/Modal';
+import Modal from '../components/ui/Modal';
 import { Plus, Search, Edit2, Trash2, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { Contact } from '../models';
 

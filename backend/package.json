@@ -4,11 +4,17 @@
   "private": true,
   "scripts": {
     "dev": "tsx watch src/server.ts",
+    "dev:init": "tsx docker/setup.ts",
+    "dev:reset": "tsx docker/reset.ts",
+    "dev:up": "docker compose -f docker/docker-compose.yml up -d",
+    "dev:down": "docker compose -f docker/docker-compose.yml down",
+    "dev:logs": "docker logs -f vext-postgres",
     "build": "tsc",
     "start": "node dist/server.js",
     "seed": "tsx prisma/seed.ts",
     "studio": "npx prisma studio",
     "migrate": "npx prisma migrate dev",
+    "migrate:reset": "npx prisma migrate reset --force",
     "generate": "npx prisma generate"
   },
   "dependencies": {
@@ -21,6 +27,7 @@
     "express-rate-limit": "^7.5.0",
     "helmet": "^8.0.0",
     "jsonwebtoken": "^9.0.2",
+    "morgan": "^1.10.1",
     "nanoid": "^3.3.8",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",

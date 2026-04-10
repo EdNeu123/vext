@@ -1,4 +1,4 @@
-import { prisma } from '../config/database';
+import { prisma } from '../config/prisma';
 import { ApiError } from '../utils/helpers';
 import { auditService } from './audit.service';
 import type { CreateTaskInput, UpdateTaskInput } from '../models/schemas';
@@ -13,7 +13,7 @@ export class TaskService {
         orderBy: { dueDate: 'asc' },
         include: {
           contact: { select: { id: true, name: true } },
-          deal: { select: { id: true, title: true } },
+          card: { select: { id: true, title: true } },
           owner: { select: { id: true, name: true } },
         },
         skip: (page - 1) * limit,
@@ -30,7 +30,7 @@ export class TaskService {
       where: { id },
       include: {
         contact: { select: { id: true, name: true } },
-        deal: { select: { id: true, title: true } },
+        card: { select: { id: true, title: true } },
       },
     });
     if (!task) throw ApiError.notFound('Tarefa não encontrada');
@@ -51,7 +51,7 @@ export class TaskService {
       orderBy: { dueDate: 'asc' },
       include: {
         contact: { select: { id: true, name: true } },
-        deal: { select: { id: true, title: true } },
+        card: { select: { id: true, title: true } },
         owner: { select: { id: true, name: true } },
       },
     });
@@ -69,7 +69,7 @@ export class TaskService {
       orderBy: { dueDate: 'asc' },
       include: {
         contact: { select: { id: true, name: true } },
-        deal: { select: { id: true, title: true } },
+        card: { select: { id: true, title: true } },
       },
     });
   }

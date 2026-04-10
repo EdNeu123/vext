@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { landingPageService } from '../services';
 import { formatDate } from '../utils/format';
 import { toast } from 'sonner';
-import Modal from '../components/Modal';
+import Modal from '../components/ui/Modal';
 import { Plus, Edit2, Trash2, Eye, MousePointerClick, ExternalLink, ToggleLeft, ToggleRight } from 'lucide-react';
 import type { LandingPage } from '../models';
 

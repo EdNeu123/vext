@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { useAppStore } from '../stores/useAppStore';
+import { useAppStore } from '../store/authStore';
 import { toast } from 'sonner';
 
 export default function Login() {
   const navigate = useNavigate();
-  const login = useAppStore((s) => s.login);
+  const login = useAuthStore((s) => s.login);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);

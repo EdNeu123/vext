@@ -33,7 +33,7 @@ model User {
   updatedAt    DateTime  @updatedAt
 
   contacts       Contact[]
-  deals          Deal[]
+  cards          Card[]
   tasks          Task[]
   landingPages   LandingPage[]
   auditLogs      AuditLog[]
@@ -128,7 +128,7 @@ model Contact {
   updatedAt       DateTime  @updatedAt
 
   owner User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  deals Deal[]
+  cards Card[]
   tasks Task[]
 
   @@index([name])
@@ -149,7 +149,7 @@ model Tag {
   color     String   @default("#3b82f6") @db.VarChar(100)
   createdAt DateTime @default(now())
 
-  deals DealTag[]
+  cards CardTag[]
 
   @@map("tags")
 }
@@ -167,6 +167,9 @@ model Product {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  cards        Card[]
+  landingPages LandingPage[]
+
   @@index([name])
   @@index([isActive])
   @@map("products")
@@ -176,7 +179,7 @@ model Product {
 // DEALS (Pipeline)
 // ==========================================
 
-enum DealStage {
+enum CardStage {
   prospecting
   qualification
   presentation
@@ -185,11 +188,11 @@ enum DealStage {
   lost
 }
 
-model Deal {
+model Card {
   id                      Int       @id @default(autoincrement())
   title                   String    @db.VarChar(255)
   value                   Decimal   @db.Decimal(15, 2)
-  stage                   DealStage @default(prospecting)
+  stage                   CardStage @default(prospecting)
   probability             Int       @default(10)
   contactId               Int
   ownerId                 Int
@@ -206,27 +209,28 @@ model Deal {
   createdAt               DateTime  @default(now())
   updatedAt               DateTime  @updatedAt
 
-  contact Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  contact Contact?  @relation(fields: [contactId], references: [id], onDelete: Cascade)
   owner   User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  tags    DealTag[]
+  product Product?  @relation(fields: [productId], references: [id], onDelete: SetNull)
+  tags    CardTag[]
   tasks   Task[]
 
   @@index([stage])
   @@index([contactId])
   @@index([ownerId])
   @@index([nextFollowUpDate])
-  @@map("deals")
+  @@map("cards")
 }
 
-model DealTag {
-  dealId Int
+model CardTag {
+  cardId Int
   tagId  Int
 
-  deal Deal @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  card Card @relation(fields: [cardId], references: [id], onDelete: Cascade)
   tag  Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
 
-  @@id([dealId, tagId])
-  @@map("deal_tags")
+  @@id([cardId, tagId])
+  @@map("card_tags")
 }
 
 // ==========================================
@@ -262,14 +266,14 @@ model Task {
   priority    TaskPriority @default(medium)
   dueDate     DateTime
   completedAt DateTime?
-  dealId      Int?
+  cardId      Int?
   contactId   Int?
   ownerId     Int
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
   contact Contact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
-  deal    Deal?    @relation(fields: [dealId], references: [id], onDelete: SetNull)
+  card   Card?    @relation(fields: [cardId], references: [id], onDelete: SetNull)
   owner   User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
 
   @@index([status])
@@ -307,7 +311,8 @@ model LandingPage {
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 
-  owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  owner   User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
 
   @@index([slug])
   @@index([ownerId])
@@ -319,7 +324,7 @@ model LandingPage {
 // ==========================================
 
 enum EntityType {
-  deal
+  card
   contact
   product
   user
@@ -389,7 +394,7 @@ enum PredictionType {
 
 enum PredictionEntityType {
   contact
-  deal
+  card
 }
 
 model AiPrediction {
