@@ -15,7 +15,7 @@ export class ContactController {
 
   async getById(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      res.json(apiResponse(await contactService.getById(Number(req.params.id))));
+      res.json(apiResponse(await contactService.getById(Number(req.params.id), req.user!.id, req.user!.role)));
     } catch (e) { next(e); }
   }
 
@@ -28,14 +28,14 @@ export class ContactController {
 
   async update(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const contact = await contactService.update(Number(req.params.id), req.body);
+      const contact = await contactService.update(Number(req.params.id), req.body, req.user!.id, req.user!.role);
       res.json(apiResponse(contact, 'Contato atualizado'));
     } catch (e) { next(e); }
   }
 
   async delete(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      await contactService.delete(Number(req.params.id));
+      await contactService.delete(Number(req.params.id), req.user!.id, req.user!.role);
       res.json(apiResponse(null, 'Contato deletado'));
     } catch (e) { next(e); }
   }

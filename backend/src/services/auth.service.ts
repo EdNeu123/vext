@@ -1,11 +1,11 @@
 import bcrypt from 'bcryptjs';
-import { prisma } from '../config/database';
+import { prisma } from '../config/prisma';
 import {
   generateAccessToken,
   generateRefreshToken,
   rotateRefreshToken,
   revokeAllRefreshTokens,
-} from '../middlewares/auth.middleware';
+} from '../utils/jwt';
 import { ApiError } from '../utils/helpers';
 import type { LoginInput, RegisterInput } from '../models/schemas';
 
@@ -30,6 +30,7 @@ export class AuthService {
     const accessToken = generateAccessToken({
       userId: user.id,
       email: user.email,
+      name: user.name,
       role: user.role,
     });
 
@@ -73,6 +74,7 @@ export class AuthService {
     const accessToken = generateAccessToken({
       userId: user.id,
       email: user.email,
+      name: user.name,
       role: user.role,
     });
 
@@ -108,9 +110,21 @@ export class AuthService {
   }
 
   async updateProfile(userId: number, data: Record<string, any>) {
+    // Whitelist explícita — impede Mass Assignment (ex: role, password, isActive)
+    const allowed: (keyof typeof data)[] = ['name', 'phone', 'salesGoal'];
+    const safe: Record<string, any> = {};
+    for (const key of allowed) {
+      if (data[key] !== undefined) safe[key] = data[key];
+    }
+    // avatar: apenas URLs https para evitar SSRF e javascript:
+    if (data.avatar !== undefined) {
+      const url = String(data.avatar);
+      if (!/^https:\/\/.+/.test(url)) throw new Error('Avatar deve ser uma URL HTTPS válida');
+      safe.avatar = url;
+    }
     return prisma.user.update({
       where: { id: userId },
-      data,
+      data: safe,
       select: {
         id: true, email: true, name: true, phone: true, avatar: true,
         role: true, salesGoal: true, lastSignedIn: true, createdAt: true, updatedAt: true,

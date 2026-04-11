@@ -56,16 +56,26 @@ export function paginatedResponse<T>(
 /**
  * Extrai parâmetros de paginação da query string
  */
-export function extractPagination(query: Record<string, any>): { page: number; limit: number; skip: number } {
-  const page = Math.max(1, parseInt(query.page) || 1);
-  const limit = Math.min(100, Math.max(1, parseInt(query.limit) || 20));
+export function extractPagination(
+  query: Record<string, any>,
+  maxLimit = 100
+): { page: number; limit: number; skip: number } {
+  const rawPage  = parseInt(query.page)  || 1;
+  const rawLimit = parseInt(query.limit) || 20;
+
+  // Rejeita valores absurdos antes de qualquer operação
+  if (!Number.isFinite(rawPage)  || rawPage  < 1)       throw new Error('Parâmetro page inválido');
+  if (!Number.isFinite(rawLimit) || rawLimit < 1)        throw new Error('Parâmetro limit inválido');
+
+  const page  = rawPage;
+  const limit = Math.min(rawLimit, maxLimit);  // hard cap — impossível pedir mais que maxLimit
   return { page, limit, skip: (page - 1) * limit };
 }
 
 /**
- * Calcula probabilidade do deal com base no BANT
+ * Calcula probabilidade do card com base no BANT
  */
-export function calculateDealProbability(deal: {
+export function calculateDealProbability(card: {
   stage: string;
   budgetConfirmed?: boolean | null;
   decisionMakerIdentified?: boolean | null;
@@ -81,12 +91,12 @@ export function calculateDealProbability(deal: {
     lost: 0,
   };
 
-  let probability = stageProbabilities[deal.stage] ?? 10;
+  let probability = stageProbabilities[card.stage] ?? 10;
 
-  if (deal.budgetConfirmed) probability += 5;
-  if (deal.decisionMakerIdentified) probability += 5;
-  if (deal.painPoints && deal.painPoints.length > 10) probability += 5;
-  if (deal.timeline) probability += 5;
+  if (card.budgetConfirmed) probability += 5;
+  if (card.decisionMakerIdentified) probability += 5;
+  if (card.painPoints && card.painPoints.length > 10) probability += 5;
+  if (card.timeline) probability += 5;
 
   return Math.min(probability, 100);
 }

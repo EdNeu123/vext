@@ -1,4 +1,4 @@
-import { prisma } from '../config/database';
+import { prisma } from '../config/prisma';
 import { ApiError } from '../utils/helpers';
 import type { CreateContactInput, UpdateContactInput } from '../models/schemas';
 
@@ -29,15 +29,19 @@ export class ContactService {
     return { data, total };
   }
 
-  async getById(id: number) {
+  async getById(id: number, requesterId?: number, requesterRole?: string) {
     const contact = await prisma.contact.findUnique({
       where: { id },
       include: {
         owner: { select: { id: true, name: true, email: true } },
-        deals: { select: { id: true, title: true, value: true, stage: true } },
+        cards: { select: { id: true, title: true, value: true, stage: true } },
       },
     });
     if (!contact) throw ApiError.notFound('Contato não encontrado');
+    // IDOR: sellers só acessam seus próprios contatos
+    if (requesterId && requesterRole !== 'admin' && contact.ownerId !== requesterId) {
+      throw ApiError.forbidden('Acesso negado');
+    }
     return contact;
   }
 
@@ -45,19 +49,23 @@ export class ContactService {
     return prisma.contact.create({ data: { ...data, ownerId } });
   }
 
-  async update(id: number, data: UpdateContactInput) {
-    await this.getById(id);
+  async update(id: number, data: UpdateContactInput, requesterId: number, requesterRole: string) {
+    await this.getById(id, requesterId, requesterRole);
     return prisma.contact.update({ where: { id }, data });
   }
 
-  async delete(id: number) {
-    await this.getById(id);
+  async delete(id: number, requesterId: number, requesterRole: string) {
+    await this.getById(id, requesterId, requesterRole);
     await prisma.contact.delete({ where: { id } });
   }
 
   async bulkImport(contacts: any[], ownerId: number) {
+    const MAX_BULK = 500;
+    if (contacts.length > MAX_BULK) {
+      throw ApiError.badRequest(`Limite de ${MAX_BULK} contatos por importação`);
+    }
     const data = contacts.map((c) => ({ ...c, ownerId }));
-    await prisma.contact.createMany({ data });
+    await prisma.contact.createMany({ data, skipDuplicates: true });
     return { imported: data.length };
   }
 

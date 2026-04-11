@@ -1,5 +1,6 @@
-import { prisma } from '../config/database';
+import { prisma } from '../config/prisma';
 import { nanoid } from 'nanoid';
+import crypto from 'crypto';
 import { ApiError } from '../utils/helpers';
 import { auditService } from './audit.service';
 
@@ -12,7 +13,8 @@ export class InviteService {
   }
 
   async create(data: any, invitedBy: number, inviterName: string) {
-    const token = `VEXT-${nanoid(8).toUpperCase()}-${nanoid(4).toUpperCase()}`;
+    // 32 bytes = 256 bits de entropia — resistente a brute-force
+    const token = crypto.randomBytes(32).toString('hex');
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7);
 

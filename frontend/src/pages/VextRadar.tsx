@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { aiService } from '../services';
 import { formatCurrency } from '../utils/format';
 import { Radar, AlertTriangle, TrendingUp, User, DollarSign, ShieldAlert, RefreshCw } from 'lucide-react';
+import DevBanner from '../components/ui/DevBanner';
 
 const CHURN_COLORS = { low: 'text-emerald-400', medium: 'text-yellow-400', high: 'text-red-400' };
 
@@ -17,6 +18,7 @@ export default function VextRadar() {
 
   return (
     <div className="space-y-6">
+      <DevBanner />
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 rounded-2xl bg-gradient-to-r from-indigo-500 to-purple-500 flex items-center justify-center">

@@ -1,4 +1,4 @@
-import { prisma } from '../config/database';
+import { prisma } from '../config/prisma';
 import { auditService } from './audit.service';
 
 export class TeamService {
@@ -27,7 +27,7 @@ export class TeamService {
       select: { id: true, name: true, email: true, avatar: true, salesGoal: true },
     });
 
-    const wonDeals = await prisma.deal.findMany({ where: { stage: 'won' } });
+    const wonDeals = await prisma.card.findMany({ where: { stage: 'won' } });
 
     return sellers
       .map((seller) => {
@@ -45,7 +45,14 @@ export class TeamService {
   }
 
   async updateMember(id: number, data: Record<string, any>, adminId: number, adminName: string) {
-    await prisma.user.update({ where: { id }, data });
+    // Whitelist: admin pode mudar role, permissions e salesGoal — nunca password ou email
+    const allowed = ['role', 'permissions', 'salesGoal', 'isActive'] as const;
+    const safe: Record<string, any> = {};
+    for (const key of allowed) {
+      if (data[key] !== undefined) safe[key] = data[key];
+    }
+    if (Object.keys(safe).length === 0) return;
+    await prisma.user.update({ where: { id }, data: safe });
     await auditService.log('user', id, 'Membro Atualizado', adminId, adminName);
   }
 }
