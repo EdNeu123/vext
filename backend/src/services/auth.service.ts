@@ -110,9 +110,21 @@ export class AuthService {
   }
 
   async updateProfile(userId: number, data: Record<string, any>) {
+    // Whitelist explícita — impede Mass Assignment (ex: role, password, isActive)
+    const allowed: (keyof typeof data)[] = ['name', 'phone', 'salesGoal'];
+    const safe: Record<string, any> = {};
+    for (const key of allowed) {
+      if (data[key] !== undefined) safe[key] = data[key];
+    }
+    // avatar: apenas URLs https para evitar SSRF e javascript:
+    if (data.avatar !== undefined) {
+      const url = String(data.avatar);
+      if (!/^https:\/\/.+/.test(url)) throw new Error('Avatar deve ser uma URL HTTPS válida');
+      safe.avatar = url;
+    }
     return prisma.user.update({
       where: { id: userId },
-      data,
+      data: safe,
       select: {
         id: true, email: true, name: true, phone: true, avatar: true,
         role: true, salesGoal: true, lastSignedIn: true, createdAt: true, updatedAt: true,

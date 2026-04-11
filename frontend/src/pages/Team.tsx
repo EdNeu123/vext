@@ -4,7 +4,7 @@ import { teamService, inviteService } from '../services';
 import { formatCurrency, formatRelative } from '../utils/format';
 import { toast } from 'sonner';
 import Modal from '../components/ui/Modal';
-import { useAppStore } from '../store/authStore';
+import { useAuthStore } from '../store/authStore';
 import { Plus, Trophy, Copy, UserX, Crown, Shield } from 'lucide-react';
 import DevBanner from '../components/ui/DevBanner';
 

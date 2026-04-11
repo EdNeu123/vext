@@ -15,7 +15,8 @@ export const registerSchema = z.object({
 export const updateProfileSchema = z.object({
   name: z.string().min(2).optional(),
   phone: z.string().optional(),
-  avatar: z.string().url().optional(),
+  // Apenas HTTPS — bloqueia SSRF via http:// e XSS via javascript:
+  avatar: z.string().url().startsWith('https://').optional(),
   salesGoal: z.number().positive().optional(),
 });
 

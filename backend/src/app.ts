@@ -19,11 +19,19 @@ const app = express();
 
 app.use(helmet());
 app.use(cors({
-  origin: env.CORS_ORIGIN.split(','),
+  origin: (origin, callback) => {
+    const allowed = env.CORS_ORIGIN.split(',').map((o) => o.trim());
+    // Permite requisições sem origin (ex: Postman, server-to-server) apenas em dev
+    if (!origin && env.NODE_ENV !== 'production') return callback(null, true);
+    if (!origin || allowed.includes(origin)) return callback(null, true);
+    callback(new Error(`CORS: origin '${origin}' não permitida`));
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
+// Força Vary: Origin para evitar cache poisoning em proxies
+app.use((_req, res, next) => { res.setHeader('Vary', 'Origin'); next(); });
 
 // Rate limiting
 // Auth endpoints: limite restrito por IP (brute-force protection)

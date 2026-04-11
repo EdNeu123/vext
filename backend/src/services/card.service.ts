@@ -31,7 +31,7 @@ export class CardService {
     return { data, total };
   }
 
-  async getById(id: number) {
+  async getById(id: number, requesterId?: number, requesterRole?: string) {
     const card = await prisma.card.findUnique({
       where: { id },
       include: {
@@ -42,6 +42,9 @@ export class CardService {
       },
     });
     if (!card) throw ApiError.notFound('Oportunidade não encontrada');
+    if (requesterId && requesterRole !== 'admin' && card.ownerId !== requesterId) {
+      throw ApiError.forbidden('Acesso negado');
+    }
     return { ...card, tags: card.tags.map((dt) => dt.tag) };
   }
 
@@ -68,8 +71,8 @@ export class CardService {
     return this.getById(card.id);
   }
 
-  async update(id: number, data: UpdateCardInput, userId: number, userName: string) {
-    const existing = await this.getById(id);
+  async update(id: number, data: UpdateCardInput, userId: number, userName: string, userRole: string) {
+    const existing = await this.getById(id, userId, userRole);
     const { tagIds, reason, nextFollowUpDate, ...updateData } = data;
 
     const probability = calculateDealProbability({
@@ -110,8 +113,8 @@ export class CardService {
     return this.getById(id);
   }
 
-  async delete(id: number, userId: number, userName: string) {
-    await this.getById(id);
+  async delete(id: number, userId: number, userName: string, userRole: string) {
+    await this.getById(id, userId, userRole);
     await auditService.log('card', id, 'Card Deletado', userId, userName);
     await prisma.dealTag.deleteMany({ where: { cardId: id } });
     await prisma.card.delete({ where: { id } });
