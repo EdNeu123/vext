@@ -56,9 +56,19 @@ export function paginatedResponse<T>(
 /**
  * Extrai parâmetros de paginação da query string
  */
-export function extractPagination(query: Record<string, any>): { page: number; limit: number; skip: number } {
-  const page = Math.max(1, parseInt(query.page) || 1);
-  const limit = Math.min(100, Math.max(1, parseInt(query.limit) || 20));
+export function extractPagination(
+  query: Record<string, any>,
+  maxLimit = 100
+): { page: number; limit: number; skip: number } {
+  const rawPage  = parseInt(query.page)  || 1;
+  const rawLimit = parseInt(query.limit) || 20;
+
+  // Rejeita valores absurdos antes de qualquer operação
+  if (!Number.isFinite(rawPage)  || rawPage  < 1)       throw new Error('Parâmetro page inválido');
+  if (!Number.isFinite(rawLimit) || rawLimit < 1)        throw new Error('Parâmetro limit inválido');
+
+  const page  = rawPage;
+  const limit = Math.min(rawLimit, maxLimit);  // hard cap — impossível pedir mais que maxLimit
   return { page, limit, skip: (page - 1) * limit };
 }
 

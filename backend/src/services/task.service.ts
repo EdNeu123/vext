@@ -25,7 +25,7 @@ export class TaskService {
     return { data, total };
   }
 
-  async getById(id: number) {
+  async getById(id: number, requesterId?: number, requesterRole?: string) {
     const task = await prisma.task.findUnique({
       where: { id },
       include: {
@@ -34,6 +34,9 @@ export class TaskService {
       },
     });
     if (!task) throw ApiError.notFound('Tarefa não encontrada');
+    if (requesterId && requesterRole !== 'admin' && task.ownerId !== requesterId) {
+      throw ApiError.forbidden('Acesso negado');
+    }
     return task;
   }
 
@@ -82,8 +85,8 @@ export class TaskService {
     return task;
   }
 
-  async update(id: number, data: UpdateTaskInput, userId: number, userName: string) {
-    const existing = await this.getById(id);
+  async update(id: number, data: UpdateTaskInput, userId: number, userName: string, userRole: string) {
+    const existing = await this.getById(id, userId, userRole);
 
     if (data.dueDate && !data.reason) {
       const newDate = new Date(data.dueDate);
@@ -103,8 +106,8 @@ export class TaskService {
     return task;
   }
 
-  async delete(id: number, userId: number, userName: string) {
-    await this.getById(id);
+  async delete(id: number, userId: number, userName: string, userRole: string) {
+    await this.getById(id, userId, userRole);
     await auditService.log('task', id, 'Tarefa Deletada', userId, userName);
     await prisma.task.delete({ where: { id } });
   }

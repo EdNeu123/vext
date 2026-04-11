@@ -12,16 +12,29 @@ export class TaskController {
     } catch (e) { next(e); }
   }
   async getById(req: AuthRequest, res: Response, next: NextFunction) {
-    try { res.json(apiResponse(await taskService.getById(Number(req.params.id)))); } catch (e) { next(e); }
+    try { res.json(apiResponse(await taskService.getById(Number(req.params.id), req.user!.id, req.user!.role))); } catch (e) { next(e); }
   }
   async getByDate(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      res.json(apiResponse(await taskService.getByDate(new Date(req.query.date as string), req.user!.id, req.user!.role)));
+      const dateStr = req.query.date as string;
+      if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+        return next({ statusCode: 400, message: 'Parâmetro date inválido. Use YYYY-MM-DD', isOperational: true });
+      }
+      const parsed = new Date(dateStr);
+      if (isNaN(parsed.getTime())) {
+        return next({ statusCode: 400, message: 'Data inválida', isOperational: true });
+      }
+      res.json(apiResponse(await taskService.getByDate(parsed, req.user!.id, req.user!.role)));
     } catch (e) { next(e); }
   }
   async getByMonth(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      res.json(apiResponse(await taskService.getByMonth(Number(req.query.year), Number(req.query.month), req.user!.id, req.user!.role)));
+      const year  = parseInt(req.query.year  as string);
+      const month = parseInt(req.query.month as string);
+      if (isNaN(year) || isNaN(month) || year < 2000 || year > 2100 || month < 0 || month > 11) {
+        return next({ statusCode: 400, message: 'Parâmetros year/month inválidos', isOperational: true });
+      }
+      res.json(apiResponse(await taskService.getByMonth(year, month, req.user!.id, req.user!.role)));
     } catch (e) { next(e); }
   }
   async create(req: AuthRequest, res: Response, next: NextFunction) {
@@ -31,12 +44,12 @@ export class TaskController {
   }
   async update(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      res.json(apiResponse(await taskService.update(Number(req.params.id), req.body, req.user!.id, req.user!.name), 'Tarefa atualizada'));
+      res.json(apiResponse(await taskService.update(Number(req.params.id), req.body, req.user!.id, req.user!.name, req.user!.role), 'Tarefa atualizada'));
     } catch (e) { next(e); }
   }
   async delete(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      await taskService.delete(Number(req.params.id), req.user!.id, req.user!.name);
+      await taskService.delete(Number(req.params.id), req.user!.id, req.user!.name, req.user!.role);
       res.json(apiResponse(null, 'Tarefa deletada'));
     } catch (e) { next(e); }
   }

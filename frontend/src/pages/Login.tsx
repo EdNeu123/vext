@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { useAppStore } from '../store/authStore';
+import { useAuthStore } from '../store/authStore';
 import { toast } from 'sonner';
 
 export default function Login() {

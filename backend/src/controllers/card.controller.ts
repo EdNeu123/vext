@@ -14,7 +14,7 @@ export class CardController {
 
   async getById(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      res.json(apiResponse(await cardService.getById(Number(req.params.id))));
+      res.json(apiResponse(await cardService.getById(Number(req.params.id), req.user!.id, req.user!.role)));
     } catch (e) { next(e); }
   }
 
@@ -27,14 +27,14 @@ export class CardController {
 
   async update(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const card = await cardService.update(Number(req.params.id), req.body, req.user!.id, req.user!.name);
+      const card = await cardService.update(Number(req.params.id), req.body, req.user!.id, req.user!.name, req.user!.role);
       res.json(apiResponse(card, 'Oportunidade atualizada'));
     } catch (e) { next(e); }
   }
 
   async delete(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      await cardService.delete(Number(req.params.id), req.user!.id, req.user!.name);
+      await cardService.delete(Number(req.params.id), req.user!.id, req.user!.name, req.user!.role);
       res.json(apiResponse(null, 'Oportunidade deletada'));
     } catch (e) { next(e); }
   }
