@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { dashboardService, dealService } from '../services';
+import { dashboardService, cardService } from '../services';
 import { formatCurrency, formatPercent } from '../utils/format';
 import { TrendingUp, DollarSign, Target, Users, Activity, CheckSquare, BarChart3, AlertTriangle } from 'lucide-react';
 
@@ -19,7 +19,7 @@ function MetricCard({ icon: Icon, label, value, sub, color }: { icon: any; label
 export default function Dashboard() {
   const { data: metrics } = useQuery({ queryKey: ['dashboard-metrics'], queryFn: () => dashboardService.getMetrics() });
   const { data: goal } = useQuery({ queryKey: ['dashboard-goal'], queryFn: () => dashboardService.getGoalProgress() });
-  const { data: stats } = useQuery({ queryKey: ['deal-stats'], queryFn: () => dealService.getStats() });
+  const { data: stats } = useQuery({ queryKey: ['card-stats'], queryFn: () => cardService.getStats() });
 
   const m = metrics as any;
   const g = goal as any;
@@ -35,16 +35,16 @@ export default function Dashboard() {
       {/* Metrics Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard icon={DollarSign} label="Pipeline Ativo" value={m ? formatCurrency(m.totalPipeline) : '...'} color="bg-blue-500/10 text-blue-400" />
-        <MetricCard icon={TrendingUp} label="Deals Ganhos" value={m ? formatCurrency(m.wonDeals) : '...'} color="bg-emerald-500/10 text-emerald-400" />
+        <MetricCard icon={TrendingUp} label="Cards Ganhos" value={m ? formatCurrency(m.wonDeals) : '...'} color="bg-emerald-500/10 text-emerald-400" />
         <MetricCard icon={Activity} label="Conversão" value={m ? formatPercent(m.conversionRate) : '...'} color="bg-purple-500/10 text-purple-400" />
         <MetricCard icon={Target} label="Ticket Médio" value={m ? formatCurrency(m.avgDealValue) : '...'} color="bg-amber-500/10 text-amber-400" />
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <MetricCard icon={BarChart3} label="Deals Ativos" value={m?.activeDeals?.toString() || '0'} color="bg-indigo-500/10 text-indigo-400" />
+        <MetricCard icon={BarChart3} label="Cards Ativos" value={m?.activeDeals?.toString() || '0'} color="bg-indigo-500/10 text-indigo-400" />
         <MetricCard icon={Users} label="Contatos" value={m?.contactCount?.toString() || '0'} color="bg-cyan-500/10 text-cyan-400" />
         <MetricCard icon={CheckSquare} label="Tarefas Pendentes" value={m?.pendingTasks?.toString() || '0'} color="bg-orange-500/10 text-orange-400" />
-        <MetricCard icon={AlertTriangle} label="Deals Perdidos" value={m ? formatCurrency(m.lostDeals) : '...'} color="bg-red-500/10 text-red-400" />
+        <MetricCard icon={AlertTriangle} label="Cards Perdidos" value={m ? formatCurrency(m.lostDeals) : '...'} color="bg-red-500/10 text-red-400" />
       </div>
 
       {/* Goal Progress */}

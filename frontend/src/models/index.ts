@@ -31,16 +31,16 @@ export interface Contact {
   createdAt: string;
   updatedAt: string;
   owner?: { id: number; name: string; email: string };
-  deals?: { id: number; title: string; value: number; stage: string }[];
+  cards?: { id: number; title: string; value: number; stage: string }[];
 }
 
-export type DealStage = 'prospecting' | 'qualification' | 'presentation' | 'negotiation' | 'won' | 'lost';
+export type CardStage = 'prospecting' | 'qualification' | 'presentation' | 'negotiation' | 'won' | 'lost';
 
-export interface Deal {
+export interface Card {
   id: number;
   title: string;
   value: number;
-  stage: DealStage;
+  stage: CardStage;
   probability: number;
   contactId: number;
   ownerId: number;
@@ -89,12 +89,12 @@ export interface Task {
   priority: TaskPriority;
   dueDate: string;
   completedAt: string | null;
-  dealId: number | null;
+  cardId: number | null;
   contactId: number | null;
   ownerId: number;
   createdAt: string;
   contact?: { id: number; name: string } | null;
-  deal?: { id: number; title: string } | null;
+  card?: { id: number; title: string } | null;
   owner?: { id: number; name: string };
 }
 

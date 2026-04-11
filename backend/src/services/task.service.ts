@@ -1,4 +1,4 @@
-import { prisma } from '../config/database';
+import { prisma } from '../config/prisma';
 import { ApiError } from '../utils/helpers';
 import { auditService } from './audit.service';
 import type { CreateTaskInput, UpdateTaskInput } from '../models/schemas';
@@ -13,7 +13,7 @@ export class TaskService {
         orderBy: { dueDate: 'asc' },
         include: {
           contact: { select: { id: true, name: true } },
-          deal: { select: { id: true, title: true } },
+          card: { select: { id: true, title: true } },
           owner: { select: { id: true, name: true } },
         },
         skip: (page - 1) * limit,
@@ -25,15 +25,18 @@ export class TaskService {
     return { data, total };
   }
 
-  async getById(id: number) {
+  async getById(id: number, requesterId?: number, requesterRole?: string) {
     const task = await prisma.task.findUnique({
       where: { id },
       include: {
         contact: { select: { id: true, name: true } },
-        deal: { select: { id: true, title: true } },
+        card: { select: { id: true, title: true } },
       },
     });
     if (!task) throw ApiError.notFound('Tarefa não encontrada');
+    if (requesterId && requesterRole !== 'admin' && task.ownerId !== requesterId) {
+      throw ApiError.forbidden('Acesso negado');
+    }
     return task;
   }
 
@@ -51,7 +54,7 @@ export class TaskService {
       orderBy: { dueDate: 'asc' },
       include: {
         contact: { select: { id: true, name: true } },
-        deal: { select: { id: true, title: true } },
+        card: { select: { id: true, title: true } },
         owner: { select: { id: true, name: true } },
       },
     });
@@ -69,7 +72,7 @@ export class TaskService {
       orderBy: { dueDate: 'asc' },
       include: {
         contact: { select: { id: true, name: true } },
-        deal: { select: { id: true, title: true } },
+        card: { select: { id: true, title: true } },
       },
     });
   }
@@ -82,8 +85,8 @@ export class TaskService {
     return task;
   }
 
-  async update(id: number, data: UpdateTaskInput, userId: number, userName: string) {
-    const existing = await this.getById(id);
+  async update(id: number, data: UpdateTaskInput, userId: number, userName: string, userRole: string) {
+    const existing = await this.getById(id, userId, userRole);
 
     if (data.dueDate && !data.reason) {
       const newDate = new Date(data.dueDate);
@@ -103,8 +106,8 @@ export class TaskService {
     return task;
   }
 
-  async delete(id: number, userId: number, userName: string) {
-    await this.getById(id);
+  async delete(id: number, userId: number, userName: string, userRole: string) {
+    await this.getById(id, userId, userRole);
     await auditService.log('task', id, 'Tarefa Deletada', userId, userName);
     await prisma.task.delete({ where: { id } });
   }

@@ -1,0 +1,266 @@
+@startuml er_vext_crm
+!theme plain
+hide circle
+hide methods
+skinparam classAttributeIconSize 0
+
+' ==========================================
+' USERS & AUTHENTICATION
+' ==========================================
+
+entity "users" as User {
+  *id : Int
+  --
+  email : varchar(320) <<unique>>
+  password : varchar(255)
+  name : varchar(255)
+  phone : varchar(32)?
+  avatar : text?
+  role : enum(admin, seller)
+  permissions : json?
+  salesGoal : decimal(15,2)?
+  birthDate : date?
+  isActive : boolean
+  lastSignedIn : datetime
+  createdAt : datetime
+  updatedAt : datetime
+}
+
+entity "refresh_tokens" as RefreshToken {
+  *id : Int
+  --
+  token : varchar(512) <<unique>>
+  userId : Int <<FK>>
+  expiresAt : datetime
+  revoked : boolean
+  createdAt : datetime
+}
+
+entity "invites" as Invite {
+  *id : Int
+  --
+  token : varchar(64) <<unique>>
+  email : varchar(320)
+  name : varchar(255)
+  role : enum(admin, seller)
+  permissions : json?
+  status : enum(pending, used, expired)
+  invitedBy : Int <<FK>>
+  usedBy : Int?
+  expiresAt : datetime
+  usedAt : datetime?
+  createdAt : datetime
+}
+
+' ==========================================
+' CONTACTS
+' ==========================================
+
+entity "contacts" as Contact {
+  *id : Int
+  --
+  name : varchar(255)
+  email : varchar(320)?
+  phone : varchar(32)?
+  company : varchar(255)?
+  position : varchar(255)?
+  source : varchar(100)?
+  notes : text?
+  ltv : decimal(15,2)?
+  averageTicket : decimal(15,2)?
+  totalPurchases : Int
+  lastPurchaseAt : datetime?
+  bestContactTime : varchar(50)?
+  churnRisk : enum(low, medium, high)
+  npsScore : Int?
+  ownerId : Int <<FK>>
+  createdAt : datetime
+  updatedAt : datetime
+}
+
+' ==========================================
+' TAGS
+' ==========================================
+
+entity "tags" as Tag {
+  *id : Int
+  --
+  label : varchar(100) <<unique>>
+  color : varchar(100)
+  createdAt : datetime
+}
+
+entity "card_tags" as CardTag {
+  *cardId : Int <<FK>>
+  *tagId : Int <<FK>>
+}
+
+' ==========================================
+' PRODUCTS
+' ==========================================
+
+entity "products" as Product {
+  *id : Int
+  --
+  name : varchar(255)
+  price : decimal(15,2)
+  description : text?
+  isActive : boolean
+  createdAt : datetime
+  updatedAt : datetime
+}
+
+' ==========================================
+' DEALS
+' ==========================================
+
+entity "cards" as Deal {
+  *id : Int
+  --
+  title : varchar(255)
+  value : decimal(15,2)
+  stage : enum(prospecting, qualification, presentation, negotiation, won, lost)
+  probability : Int
+  contactId : Int <<FK>>
+  ownerId : Int <<FK>>
+  productId : Int? <<FK>>
+  budgetConfirmed : boolean
+  decisionMakerIdentified : boolean
+  painPoints : text?
+  competitors : text?
+  timeline : varchar(100)?
+  nextFollowUpDate : datetime?
+  notes : text?
+  closedAt : datetime?
+  lostReason : text?
+  createdAt : datetime
+  updatedAt : datetime
+}
+
+' ==========================================
+' TASKS
+' ==========================================
+
+entity "tasks" as Task {
+  *id : Int
+  --
+  title : varchar(255)
+  description : text?
+  type : enum(call, meeting, email, follow_up, other)
+  status : enum(pending, completed, cancelled)
+  priority : enum(low, medium, high)
+  dueDate : datetime
+  completedAt : datetime?
+  cardId : Int? <<FK>>
+  contactId : Int? <<FK>>
+  ownerId : Int <<FK>>
+  createdAt : datetime
+  updatedAt : datetime
+}
+
+' ==========================================
+' LANDING PAGES
+' ==========================================
+
+entity "landing_pages" as LandingPage {
+  *id : Int
+  --
+  title : varchar(255)
+  headline : varchar(500)
+  subheadline : text?
+  ctaText : varchar(100)?
+  slug : varchar(100) <<unique>>
+  themeColor : enum(indigo, emerald, rose, amber, blue, purple)
+  productId : Int? <<FK>>
+  views : Int
+  conversions : Int
+  isActive : boolean
+  ownerId : Int <<FK>>
+  createdAt : datetime
+  updatedAt : datetime
+}
+
+' ==========================================
+' AUDIT LOG
+' ==========================================
+
+entity "audit_logs" as AuditLog {
+  *id : Int
+  --
+  entityType : enum(deal, contact, product, user, invite, task, landing_page)
+  entityId : Int
+  action : varchar(255)
+  changes : json?
+  reason : text?
+  userId : Int <<FK>>
+  userName : varchar(255)
+  createdAt : datetime
+}
+
+' ==========================================
+' NOTIFICATIONS
+' ==========================================
+
+entity "notifications" as Notification {
+  *id : Int
+  --
+  title : varchar(255)
+  message : text?
+  type : enum(info, success, warning, error, ai)
+  isRead : boolean
+  userId : Int <<FK>>
+  link : varchar(500)?
+  createdAt : datetime
+}
+
+' ==========================================
+' AI PREDICTIONS
+' ==========================================
+
+note as NoteAI
+  entityId e polimorfic -- referencia
+  contact ou deal via entityType.
+  Sem FK formal no banco.
+end note
+
+entity "ai_predictions" as AiPrediction {
+  *id : Int
+  --
+  type : enum(churn_risk, repurchase, deal_score, best_contact_time)
+  entityType : enum(contact, deal)
+  entityId : Int <<polimorfic>>
+  score : decimal(5,2)?
+  confidence : decimal(5,2)?
+  factors : json?
+  recommendation : text?
+  createdAt : datetime
+  expiresAt : datetime?
+}
+
+NoteAI .. AiPrediction
+
+' ==========================================
+' RELATIONSHIPS
+' ==========================================
+
+User ||--o{ RefreshToken  : "userId"
+User ||--o{ Invite        : "invitedBy"
+User ||--o{ Contact       : "ownerId"
+User ||--o{ Deal          : "ownerId"
+User ||--o{ Task          : "ownerId"
+User ||--o{ LandingPage   : "ownerId"
+User ||--o{ AuditLog      : "userId"
+User ||--o{ Notification  : "userId"
+
+Contact ||--o{ Deal : "contactId"
+Contact ||--o{ Task : "contactId"
+
+Deal ||--o{ Task    : "cardId"
+Deal ||--o{ CardTag : "cardId"
+
+Tag ||--o{ CardTag : "tagId"
+
+Product ||--o{ Deal        : "productId"
+Product ||--o{ LandingPage : "productId"
+
+@enduml

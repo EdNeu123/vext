@@ -1,21 +1,31 @@
-import { prisma } from '../config/database';
+import { prisma } from '../config/prisma';
 import { ApiError } from '../utils/helpers';
 import { auditService } from './audit.service';
 
 export class LandingPageService {
   async list(userId: number, role: string) {
     const where = role !== 'admin' ? { ownerId: userId } : {};
-    return prisma.landingPage.findMany({ where, orderBy: { createdAt: 'desc' } });
+    return prisma.landingPage.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      include: { product: { select: { id: true, name: true, price: true } } },
+    });
   }
 
   async getById(id: number) {
-    const page = await prisma.landingPage.findUnique({ where: { id } });
+    const page = await prisma.landingPage.findUnique({
+      where: { id },
+      include: { product: { select: { id: true, name: true, price: true } } },
+    });
     if (!page) throw ApiError.notFound('Landing Page não encontrada');
     return page;
   }
 
   async getBySlug(slug: string) {
-    const page = await prisma.landingPage.findUnique({ where: { slug } });
+    const page = await prisma.landingPage.findUnique({
+      where: { slug },
+      include: { product: { select: { id: true, name: true, price: true } } },
+    });
     if (!page || !page.isActive) throw ApiError.notFound('Página não encontrada');
     await prisma.landingPage.update({ where: { id: page.id }, data: { views: { increment: 1 } } });
     return page;
@@ -47,7 +57,10 @@ export class LandingPageService {
   }
 
   async recordConversion(slug: string) {
-    const page = await prisma.landingPage.findUnique({ where: { slug } });
+    const page = await prisma.landingPage.findUnique({
+      where: { slug },
+      include: { product: { select: { id: true, name: true, price: true } } },
+    });
     if (page) {
       await prisma.landingPage.update({ where: { id: page.id }, data: { conversions: { increment: 1 } } });
     }
