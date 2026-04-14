@@ -15,7 +15,8 @@
     "studio": "npx prisma studio",
     "migrate": "npx prisma migrate dev",
     "migrate:reset": "npx prisma migrate reset --force",
-    "generate": "npx prisma generate"
+    "generate": "npx prisma generate",
+    "vercel-build": "npx prisma generate && tsc"
   },
   "dependencies": {
     "@prisma/client": "^6.2.0",
