@@ -2,15 +2,10 @@
   "version": 2,
   "buildCommand": "npm run vercel-build",
   "outputDirectory": "dist",
-  "functions": {
-    "dist/handler.js": {
-      "includeFiles": "prisma/**"
-    }
-  },
   "routes": [
     {
       "src": "/(.*)",
-      "dest": "dist/handler.js"
+      "dest": "/api/index.js"
     }
   ]
 }
