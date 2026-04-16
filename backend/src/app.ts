@@ -30,6 +30,10 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
+
+// Resolve requisições de preflight (OPTIONS)
+app.options('*', cors());
+
 // Força Vary: Origin para evitar cache poisoning em proxies
 app.use((_req, res, next) => { res.setHeader('Vary', 'Origin'); next(); });
 
