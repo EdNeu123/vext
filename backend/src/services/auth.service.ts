@@ -1,4 +1,4 @@
-import bcrypt from 'bcryptjs';
+import { hashPassword, comparePassword } from '../utils/hash';
 import { prisma } from '../config/prisma';
 import {
   generateAccessToken,
@@ -17,7 +17,7 @@ export class AuthService {
       throw ApiError.unauthorized('Credenciais inválidas');
     }
 
-    const isValidPassword = await bcrypt.compare(input.password, user.password);
+    const isValidPassword = await comparePassword(input.password, user.password);
     if (!isValidPassword) {
       throw ApiError.unauthorized('Credenciais inválidas');
     }
@@ -58,7 +58,7 @@ export class AuthService {
       inviteId = invite.id;
     }
 
-    const hashedPassword = await bcrypt.hash(input.password, 12);
+    const hashedPassword = await hashPassword(input.password);
 
     const user = await prisma.user.create({
       data: { name: input.name, email: input.email, password: hashedPassword, role },

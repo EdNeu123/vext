@@ -6,7 +6,7 @@ import cookieParser from 'cookie-parser';
 import rateLimit from 'express-rate-limit';
 import swaggerUi from 'swagger-ui-express';
 import { env } from './config/env';
-import { morganStream } from './config/logger';
+import { morganStream } from './utils/logger';
 import { errorHandler, notFoundHandler } from './middlewares';
 import routes from './routes';
 import { swaggerSpec } from './docs/swagger';

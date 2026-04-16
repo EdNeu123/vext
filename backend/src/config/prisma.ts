@@ -1,19 +1,12 @@
-import { PrismaClient } from '@prisma/client';
-import { logger } from './logger';
+import { PrismaClient, Prisma } from '@prisma/client';
+import { logger } from '../utils/logger';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Singleton para evitar múltiplas instâncias em hot-reload (desenvolvimento)
-// e em ambientes serverless (Vercel).
-// connection_limit: limita o pool para não esgotar conexões do PostgreSQL.
-// Em produção, ajuste conforme o plano do banco (Oracle Free = ~15 conexões).
-// ─────────────────────────────────────────────────────────────────────────────
 declare global {
   // eslint-disable-next-line no-var
   var __prisma: PrismaClient | undefined;
 }
 
 function createPrismaClient() {
-  // Adiciona connection_limit à URL se não estiver presente
   const url = new URL(process.env.DATABASE_URL ?? 'postgresql://localhost');
   if (!url.searchParams.has('connection_limit')) {
     url.searchParams.set('connection_limit', '10');
@@ -21,11 +14,12 @@ function createPrismaClient() {
   }
   process.env.DATABASE_URL = url.toString();
 
-  return new PrismaClient({
-    log: process.env.NODE_ENV === 'development'
-      ? [{ emit: 'event', level: 'error' }, { emit: 'event', level: 'warn' }]
-      : [{ emit: 'event', level: 'error' }],
-  });
+  const logConfig: Prisma.LogDefinition[] = [
+    { emit: 'event', level: 'error' },
+    { emit: 'event', level: 'warn' },
+  ];
+
+  return new PrismaClient({ log: logConfig });
 }
 
 export const prisma: PrismaClient = globalThis.__prisma ?? createPrismaClient();
@@ -34,11 +28,11 @@ if (process.env.NODE_ENV !== 'production') {
   globalThis.__prisma = prisma;
 }
 
-prisma.$on('error', (e) => {
+(prisma.$on as any)('error', (e: Prisma.LogEvent) => {
   logger.error('Prisma error', { message: e.message, target: e.target });
 });
 
-prisma.$on('warn', (e) => {
+(prisma.$on as any)('warn', (e: Prisma.LogEvent) => {
   logger.warn('Prisma warning', { message: e.message });
 });
 
