@@ -27,7 +27,7 @@ app.use(cors({
     callback(new Error(`CORS: origin '${origin}' não permitida`));
   },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 // Força Vary: Origin para evitar cache poisoning em proxies
@@ -35,7 +35,7 @@ app.use((_req, res, next) => { res.setHeader('Vary', 'Origin'); next(); });
 
 // Rate limiting
 // Auth endpoints: limite restrito por IP (brute-force protection)
-app.use('/api/auth/login',    rateLimit({ windowMs: 15 * 60 * 1000, max: 20, message: { success: false, message: 'Muitas tentativas de login. Tente em 15 minutos.' }, standardHeaders: true, legacyHeaders: false }));
+app.use('/api/auth/login', rateLimit({ windowMs: 15 * 60 * 1000, max: 20, message: { success: false, message: 'Muitas tentativas de login. Tente em 15 minutos.' }, standardHeaders: true, legacyHeaders: false }));
 app.use('/api/auth/register', rateLimit({ windowMs: 60 * 60 * 1000, max: 10, message: { success: false, message: 'Muitas tentativas de registro.' }, standardHeaders: true, legacyHeaders: false }));
 
 // Demais rotas: limite por userId (evita bloquear todos os users do mesmo IP)
@@ -47,8 +47,8 @@ app.use('/api', rateLimit({
     if (auth?.startsWith('Bearer ')) {
       try {
         const payload = JSON.parse(Buffer.from(auth.slice(7).split('.')[1], 'base64').toString());
-        if (payload?.userId) return ;
-      } catch {}
+        if (payload?.userId) return;
+      } catch { }
     }
     return req.ip ?? 'unknown';
   },
