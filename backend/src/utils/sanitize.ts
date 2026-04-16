@@ -1,6 +1,6 @@
-import xss from 'xss';
+import { FilterXSS } from 'xss';
 
-const xssOptions = new xss.FilterXSS({
+const xssFilter = new FilterXSS({
   whiteList: {},
   stripIgnoreTag: true,
   stripIgnoreTagBody: ['script', 'style'],
@@ -10,7 +10,7 @@ const xssOptions = new xss.FilterXSS({
  * Sanitiza string contra XSS
  */
 export function sanitizeString(input: string): string {
-  return xssOptions.process(input);
+  return xssFilter.process(input);
 }
 
 /**
