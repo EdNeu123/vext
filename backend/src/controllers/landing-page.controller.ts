@@ -13,7 +13,7 @@ export class LandingPageController {
   }
 
   async getBySlug(req: AuthRequest, res: Response, next: NextFunction) {
-    try { res.json(apiResponse(await landingPageService.getBySlug(req.params.slug))); } catch (e) { next(e); }
+    try { res.json(apiResponse(await landingPageService.getBySlug(req.params.slug as string))); } catch (e) { next(e); }
   }
 
   async create(req: AuthRequest, res: Response, next: NextFunction) {
@@ -37,7 +37,7 @@ export class LandingPageController {
 
   async recordConversion(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      await landingPageService.recordConversion(req.params.slug);
+      await landingPageService.recordConversion(req.params.slug as string);
       res.json(apiResponse(null, 'Conversão registrada'));
     } catch (e) { next(e); }
   }

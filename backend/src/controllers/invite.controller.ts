@@ -15,7 +15,7 @@ export class InviteController {
   }
 
   async validate(req: AuthRequest, res: Response, next: NextFunction) {
-    try { res.json(apiResponse(await inviteService.validate(req.params.token))); } catch (e) { next(e); }
+    try { res.json(apiResponse(await inviteService.validate(req.params.token as string))); } catch (e) { next(e); }
   }
 
   async revoke(req: AuthRequest, res: Response, next: NextFunction) {
