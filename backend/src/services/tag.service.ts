@@ -14,7 +14,7 @@ export class TagService {
   }
 
   async delete(id: number) {
-    await prisma.dealTag.deleteMany({ where: { tagId: id } });
+    await prisma.cardTag.deleteMany({ where: { tagId: id } });
     await prisma.tag.delete({ where: { id } });
   }
 }

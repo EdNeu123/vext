@@ -62,7 +62,7 @@ export class CardService {
     });
 
     if (tagIds?.length) {
-      await prisma.dealTag.createMany({
+      await prisma.cardTag.createMany({
         data: tagIds.map((tagId) => ({ cardId: card.id, tagId })),
       });
     }
@@ -101,9 +101,9 @@ export class CardService {
     });
 
     if (tagIds !== undefined) {
-      await prisma.dealTag.deleteMany({ where: { cardId: id } });
+      await prisma.cardTag.deleteMany({ where: { cardId: id } });
       if (tagIds.length > 0) {
-        await prisma.dealTag.createMany({
+        await prisma.cardTag.createMany({
           data: tagIds.map((tagId) => ({ cardId: id, tagId })),
         });
       }
@@ -116,7 +116,7 @@ export class CardService {
   async delete(id: number, userId: number, userName: string, userRole: string) {
     await this.getById(id, userId, userRole);
     await auditService.log('card', id, 'Card Deletado', userId, userName);
-    await prisma.dealTag.deleteMany({ where: { cardId: id } });
+    await prisma.cardTag.deleteMany({ where: { cardId: id } });
     await prisma.card.delete({ where: { id } });
   }
 

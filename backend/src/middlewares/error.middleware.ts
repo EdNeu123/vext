@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { ApiError } from '../utils/helpers';
-import { logger } from '../config/logger';
+import { logger } from '../utils/logger';
 import { env } from '../config/env';
 
 // Mapeamento de códigos Prisma para mensagens seguras (sem vazar schema)
