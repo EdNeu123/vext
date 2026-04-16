@@ -11,7 +11,7 @@ export class DashboardService {
     const active = cards.filter((d) => !['won', 'lost'].includes(d.stage));
     const closed = won.length + lost.length;
 
-    const contactCount = await prisma.contact.count(role !== 'admin' ? { where: { ownerId: userId } } : {});
+    const contactCount = role !== 'admin' ? await prisma.contact.count({ where: { ownerId: userId } }) : await prisma.contact.count();
     const pendingTasks = await prisma.task.count({
       where: { status: 'pending', ...(role !== 'admin' ? { ownerId: userId } : {}) },
     });

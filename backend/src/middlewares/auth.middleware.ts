@@ -4,6 +4,9 @@ import { env } from '../config/env';
 import { ApiError } from '../utils/helpers';
 import type { AuthRequest, AuthPayload } from '../types/express.d';
 
+// Re-exporta tipos para permitir `import { AuthRequest } from '../middlewares/auth.middleware'`
+export type { AuthRequest, AuthPayload };
+
 /**
  * Middleware de autenticação — valida o JWT localmente (sem DB query).
  *
