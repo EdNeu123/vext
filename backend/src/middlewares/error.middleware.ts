@@ -12,7 +12,27 @@ const PRISMA_ERRORS: Record<string, { status: number; message: string }> = {
   P2016: { status: 400, message: 'Erro de consulta' },
 };
 
-export function errorHandler(err: Error, _req: Request, res: Response, _next: NextFunction): void {
+/**
+ * Log rico — vai para console.error em produção (Vercel Runtime Logs),
+ * mas NUNCA é enviado ao cliente. Permite diagnosticar 500s sem expor
+ * detalhes sensíveis do stack via resposta HTTP.
+ */
+function logUnexpected(err: Error, req: Request): void {
+  const ctx = {
+    path: req.path,
+    method: req.method,
+    userId: (req as any).user?.id ?? null,
+    errorName: err.constructor.name,
+    errorMessage: err.message,
+    stack: err.stack,
+  };
+  // Usa tanto logger (Winston) quanto console.error para garantir captura no Vercel
+  logger.error('[500] Erro não tratado', ctx);
+  // eslint-disable-next-line no-console
+  console.error('[500] Erro não tratado:', JSON.stringify(ctx, null, 2));
+}
+
+export function errorHandler(err: Error, req: Request, res: Response, _next: NextFunction): void {
   // Erros operacionais conhecidos
   if (err instanceof ApiError) {
     res.status(err.statusCode).json({ success: false, message: err.message });
@@ -27,14 +47,23 @@ export function errorHandler(err: Error, _req: Request, res: Response, _next: Ne
       res.status(mapped.status).json({ success: false, message: mapped.message });
       return;
     }
-    // Código não mapeado — loga internamente, responde genérico
-    logger.error('Prisma error não mapeado', { code: prismaError.code });
+    logger.error('Prisma error não mapeado', { code: prismaError.code, message: err.message });
+    // eslint-disable-next-line no-console
+    console.error('[Prisma] código não mapeado:', prismaError.code, err.message);
     res.status(500).json({ success: false, message: 'Erro interno do servidor' });
     return;
   }
 
   if (err.constructor.name === 'PrismaClientValidationError') {
+    logger.error('Prisma validation error', { message: err.message });
     res.status(400).json({ success: false, message: 'Dados inválidos' });
+    return;
+  }
+
+  // Erro específico do express-rate-limit v7+ quando keyGenerator retorna undefined
+  if ((err as any).code === 'ERR_ERL_KEY_GEN_UNDEFINED') {
+    logUnexpected(err, req);
+    res.status(500).json({ success: false, message: 'Erro de configuração do servidor' });
     return;
   }
 
@@ -45,24 +74,19 @@ export function errorHandler(err: Error, _req: Request, res: Response, _next: Ne
     return;
   }
 
-  // Erro inesperado — loga com stack, nunca expõe em produção
-  logger.error('Erro não tratado', {
-    message: err.message,
-    stack: err.stack,
-    name: err.constructor.name,
-  });
+  // Erro inesperado — logga com stack completo no servidor, responde genérico ao cliente
+  logUnexpected(err, req);
 
   res.status(500).json({
     success: false,
     message: env.NODE_ENV === 'production' ? 'Erro interno do servidor' : err.message,
-    // stack NUNCA enviado ao cliente, nem em dev
+    // stack NUNCA enviado ao cliente
   });
 }
 
-export function notFoundHandler(req: Request, res: Response): void {
+export function notFoundHandler(_req: Request, res: Response): void {
   res.status(404).json({
     success: false,
     message: 'Rota não encontrada',
-    // Não retornar req.method + req.path — evita enumeração de rotas
   });
 }
