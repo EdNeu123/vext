@@ -8,7 +8,7 @@ CREATE TYPE "InviteStatus" AS ENUM ('pending', 'used', 'expired');
 CREATE TYPE "ChurnRisk" AS ENUM ('low', 'medium', 'high');
 
 -- CreateEnum
-CREATE TYPE "DealStage" AS ENUM ('prospecting', 'qualification', 'presentation', 'negotiation', 'won', 'lost');
+CREATE TYPE "CardStage" AS ENUM ('prospecting', 'qualification', 'presentation', 'negotiation', 'won', 'lost');
 
 -- CreateEnum
 CREATE TYPE "TaskType" AS ENUM ('call', 'meeting', 'email', 'follow_up', 'other');
@@ -23,7 +23,7 @@ CREATE TYPE "TaskPriority" AS ENUM ('low', 'medium', 'high');
 CREATE TYPE "ThemeColor" AS ENUM ('indigo', 'emerald', 'rose', 'amber', 'blue', 'purple');
 
 -- CreateEnum
-CREATE TYPE "EntityType" AS ENUM ('deal', 'contact', 'product', 'user', 'invite', 'task', 'landing_page');
+CREATE TYPE "EntityType" AS ENUM ('card', 'contact', 'product', 'user', 'invite', 'task', 'landing_page');
 
 -- CreateEnum
 CREATE TYPE "NotificationType" AS ENUM ('info', 'success', 'warning', 'error', 'ai');
@@ -32,7 +32,7 @@ CREATE TYPE "NotificationType" AS ENUM ('info', 'success', 'warning', 'error', '
 CREATE TYPE "PredictionType" AS ENUM ('churn_risk', 'repurchase', 'deal_score', 'best_contact_time');
 
 -- CreateEnum
-CREATE TYPE "PredictionEntityType" AS ENUM ('contact', 'deal');
+CREATE TYPE "PredictionEntityType" AS ENUM ('contact', 'card');
 
 -- CreateTable
 CREATE TABLE "users" (
@@ -132,11 +132,11 @@ CREATE TABLE "products" (
 );
 
 -- CreateTable
-CREATE TABLE "deals" (
+CREATE TABLE "cards" (
     "id" SERIAL NOT NULL,
     "title" VARCHAR(255) NOT NULL,
     "value" DECIMAL(15,2) NOT NULL,
-    "stage" "DealStage" NOT NULL DEFAULT 'prospecting',
+    "stage" "CardStage" NOT NULL DEFAULT 'prospecting',
     "probability" INTEGER NOT NULL DEFAULT 10,
     "contactId" INTEGER NOT NULL,
     "ownerId" INTEGER NOT NULL,
@@ -153,15 +153,15 @@ CREATE TABLE "deals" (
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
-    CONSTRAINT "deals_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "cards_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
-CREATE TABLE "deal_tags" (
-    "dealId" INTEGER NOT NULL,
+CREATE TABLE "card_tags" (
+    "cardId" INTEGER NOT NULL,
     "tagId" INTEGER NOT NULL,
 
-    CONSTRAINT "deal_tags_pkey" PRIMARY KEY ("dealId","tagId")
+    CONSTRAINT "card_tags_pkey" PRIMARY KEY ("cardId","tagId")
 );
 
 -- CreateTable
@@ -174,7 +174,7 @@ CREATE TABLE "tasks" (
     "priority" "TaskPriority" NOT NULL DEFAULT 'medium',
     "dueDate" TIMESTAMP(3) NOT NULL,
     "completedAt" TIMESTAMP(3),
-    "dealId" INTEGER,
+    "cardId" INTEGER,
     "contactId" INTEGER,
     "ownerId" INTEGER NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -303,16 +303,16 @@ CREATE INDEX "products_name_idx" ON "products"("name");
 CREATE INDEX "products_isActive_idx" ON "products"("isActive");
 
 -- CreateIndex
-CREATE INDEX "deals_stage_idx" ON "deals"("stage");
+CREATE INDEX "cards_stage_idx" ON "cards"("stage");
 
 -- CreateIndex
-CREATE INDEX "deals_contactId_idx" ON "deals"("contactId");
+CREATE INDEX "cards_contactId_idx" ON "cards"("contactId");
 
 -- CreateIndex
-CREATE INDEX "deals_ownerId_idx" ON "deals"("ownerId");
+CREATE INDEX "cards_ownerId_idx" ON "cards"("ownerId");
 
 -- CreateIndex
-CREATE INDEX "deals_nextFollowUpDate_idx" ON "deals"("nextFollowUpDate");
+CREATE INDEX "cards_nextFollowUpDate_idx" ON "cards"("nextFollowUpDate");
 
 -- CreateIndex
 CREATE INDEX "tasks_status_idx" ON "tasks"("status");
@@ -363,28 +363,34 @@ ALTER TABLE "invites" ADD CONSTRAINT "invites_invitedBy_fkey" FOREIGN KEY ("invi
 ALTER TABLE "contacts" ADD CONSTRAINT "contacts_ownerId_fkey" FOREIGN KEY ("ownerId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "deals" ADD CONSTRAINT "deals_contactId_fkey" FOREIGN KEY ("contactId") REFERENCES "contacts"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "cards" ADD CONSTRAINT "cards_contactId_fkey" FOREIGN KEY ("contactId") REFERENCES "contacts"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "deals" ADD CONSTRAINT "deals_ownerId_fkey" FOREIGN KEY ("ownerId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "cards" ADD CONSTRAINT "cards_ownerId_fkey" FOREIGN KEY ("ownerId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "deal_tags" ADD CONSTRAINT "deal_tags_dealId_fkey" FOREIGN KEY ("dealId") REFERENCES "deals"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "cards" ADD CONSTRAINT "cards_productId_fkey" FOREIGN KEY ("productId") REFERENCES "products"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "deal_tags" ADD CONSTRAINT "deal_tags_tagId_fkey" FOREIGN KEY ("tagId") REFERENCES "tags"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "card_tags" ADD CONSTRAINT "card_tags_cardId_fkey" FOREIGN KEY ("cardId") REFERENCES "cards"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "card_tags" ADD CONSTRAINT "card_tags_tagId_fkey" FOREIGN KEY ("tagId") REFERENCES "tags"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "tasks" ADD CONSTRAINT "tasks_contactId_fkey" FOREIGN KEY ("contactId") REFERENCES "contacts"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "tasks" ADD CONSTRAINT "tasks_dealId_fkey" FOREIGN KEY ("dealId") REFERENCES "deals"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "tasks" ADD CONSTRAINT "tasks_cardId_fkey" FOREIGN KEY ("cardId") REFERENCES "cards"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "tasks" ADD CONSTRAINT "tasks_ownerId_fkey" FOREIGN KEY ("ownerId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "landing_pages" ADD CONSTRAINT "landing_pages_ownerId_fkey" FOREIGN KEY ("ownerId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "landing_pages" ADD CONSTRAINT "landing_pages_productId_fkey" FOREIGN KEY ("productId") REFERENCES "products"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "audit_logs" ADD CONSTRAINT "audit_logs_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
