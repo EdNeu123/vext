@@ -121,33 +121,61 @@ export class CardService {
   }
 
   async getStats(userId: number, role: string) {
-    const where = role !== 'admin' ? { ownerId: userId } : {};
-    const cards = await prisma.card.findMany({ where });
+    try {
+      const where = role !== 'admin' ? { ownerId: userId } : {};
+      const cardsRaw = await prisma.card.findMany({
+        where,
+        select: { stage: true, value: true },
+      });
 
-    const toNum = (v: any) => Number(v || 0);
-    const won = cards.filter((d) => d.stage === 'won');
-    const lost = cards.filter((d) => d.stage === 'lost');
-    const active = cards.filter((d) => !['won', 'lost'].includes(d.stage));
-    const closed = won.length + lost.length;
+      type CardSlice = { stage: string; value: unknown };
+      const cards = cardsRaw as CardSlice[];
 
-    const byStage = ['prospecting', 'qualification', 'presentation', 'negotiation'].map((stage) => {
-      const stageDeals = active.filter((d) => d.stage === stage);
-      return {
-        stage,
-        count: stageDeals.length,
-        value: stageDeals.reduce((acc, d) => acc + toNum(d.value), 0),
+      const toNum = (v: unknown): number => {
+        const n = Number(v ?? 0);
+        return Number.isFinite(n) ? n : 0;
       };
-    });
+      const sum = (arr: CardSlice[]): number =>
+        arr.reduce((acc: number, d: CardSlice) => acc + toNum(d.value), 0);
 
-    return {
-      totalPipeline: active.reduce((acc, d) => acc + toNum(d.value), 0),
-      wonDeals: won.reduce((acc, d) => acc + toNum(d.value), 0),
-      lostDeals: lost.reduce((acc, d) => acc + toNum(d.value), 0),
-      activeDeals: active.length,
-      conversionRate: closed > 0 ? (won.length / closed) * 100 : 0,
-      avgDealValue: won.length > 0 ? won.reduce((acc, d) => acc + toNum(d.value), 0) / won.length : 0,
-      byStage,
-    };
+      const won = cards.filter((d: CardSlice) => d.stage === 'won');
+      const lost = cards.filter((d: CardSlice) => d.stage === 'lost');
+      const active = cards.filter((d: CardSlice) => !['won', 'lost'].includes(d.stage));
+      const closed = won.length + lost.length;
+
+      const byStage = ['prospecting', 'qualification', 'presentation', 'negotiation'].map((stage: string) => {
+        const stageDeals = active.filter((d: CardSlice) => d.stage === stage);
+        return {
+          stage,
+          count: stageDeals.length,
+          value: sum(stageDeals),
+        };
+      });
+
+      const isEmpty = cards.length === 0;
+
+      return {
+        totalPipeline: sum(active),
+        wonDeals: sum(won),
+        lostDeals: sum(lost),
+        activeDeals: active.length,
+        conversionRate: closed > 0 ? (won.length / closed) * 100 : 0,
+        avgDealValue: won.length > 0 ? sum(won) / won.length : 0,
+        byStage,
+        isEmpty,
+        emptyMessage: isEmpty
+          ? 'Ainda não há cards cadastrados. Crie sua primeira oportunidade para ver estatísticas.'
+          : null,
+      };
+    } catch (error) {
+      // Log estruturado — Vercel Runtime Logs mostram isso
+      // eslint-disable-next-line no-console
+      console.error('[CardService.getStats] erro:', {
+        userId, role,
+        error: error instanceof Error ? { name: error.name, message: error.message, stack: error.stack } : error,
+      });
+      throw error;
+    }
   }
 }
 
