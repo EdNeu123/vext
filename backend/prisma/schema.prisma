@@ -148,10 +148,12 @@ model Tag {
   id        Int      @id @default(autoincrement())
   label     String   @unique @db.VarChar(100)
   color     String   @default("#3b82f6") @db.VarChar(100)
+  isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
 
   cards CardTag[]
 
+  @@index([isActive])
   @@map("tags")
 }
 
@@ -210,17 +212,54 @@ model Card {
   createdAt               DateTime  @default(now())
   updatedAt               DateTime  @updatedAt
 
-  contact Contact?  @relation(fields: [contactId], references: [id], onDelete: Cascade)
-  owner   User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  product Product?  @relation(fields: [productId], references: [id], onDelete: SetNull)
+  contact Contact?    @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  owner   User        @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  product Product?    @relation(fields: [productId], references: [id], onDelete: SetNull)
   tags    CardTag[]
   tasks   Task[]
+  events  CardEvent[]
 
   @@index([stage])
   @@index([contactId])
   @@index([ownerId])
   @@index([nextFollowUpDate])
   @@map("cards")
+}
+
+// Histórico estruturado por card — eventos de mudança de etapa, edição, etc.
+// É diferente do AuditLog (que é genérico p/ todas entidades).
+enum CardEventType {
+  created
+  stage_changed
+  value_changed
+  contact_changed
+  tags_changed
+  note_added
+  task_scheduled
+  closed_won
+  closed_lost
+  reopened
+  edited
+}
+
+model CardEvent {
+  id          Int           @id @default(autoincrement())
+  cardId      Int
+  type        CardEventType
+  fromValue   String?       @db.VarChar(255) // estado anterior (etapa antiga, valor antigo, etc.)
+  toValue     String?       @db.VarChar(255) // novo estado
+  description String?       @db.Text         // texto livre opcional ("Ligação registrada", etc.)
+  metadata    Json?         // detalhes extras (ex: lista de tags adicionadas/removidas)
+  userId      Int
+  userName    String        @db.VarChar(255) // snapshot do nome — sobrevive ao delete do user
+  createdAt   DateTime      @default(now())
+
+  card Card @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@index([cardId, createdAt])
+  @@index([userId])
+  @@index([type])
+  @@map("card_events")
 }
 
 model CardTag {

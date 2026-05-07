@@ -8,4 +8,5 @@ export const createTagSchema = z.object({
 export const updateTagSchema = z.object({
   label: z.string().min(1).optional(),
   color: z.string().optional(),
+  isActive: z.boolean().optional(),
 });
