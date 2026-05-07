@@ -2,46 +2,95 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ==============================================================
+   Vext CRM — Design Tokens (paleta Warm, portada do design system)
+   Default: Light. Dark via classe .dark no <html>.
+   ============================================================== */
+
 @layer base {
   :root {
-    --background: 0 0% 3.9%;
-    --foreground: 0 0% 98%;
-    --primary: 239 84% 67%;
-    --primary-foreground: 0 0% 100%;
+    /* Light theme — Warm */
+    --bg:        #FAF8F5;
+    --surface:   #FFFDF9;
+    --surface-2: #F5F0EA;
+    --border:    #E8E0D5;
+    --border-2:  #CFC4B6;
+    --text-1:    #1C1714;
+    --text-2:    #7A6E65;
+    --text-3:    #A09487;
+
+    --accent:    #2060E8;
+    --accent-bg: color-mix(in srgb, #2060E8 10%, white);
+
+    --green:     #16A34A;
+    --green-bg:  #DCFCE7;
+    --red:       #DC2626;
+    --red-bg:    #FEE2E2;
+    --yellow:    #CA8A04;
+    --yellow-bg: #FEF9C3;
+
+    --radius: 12px;
+    color-scheme: light;
+  }
+
+  .dark {
+    /* Dark theme — Warm */
+    --bg:        #1E1B18;
+    --surface:   #272320;
+    --surface-2: #201E1B;
+    --border:    #332F2A;
+    --border-2:  #403B36;
+    --text-1:    #EDE8E0;
+    --text-2:    #A09487;
+    --text-3:    #7A6E65;
+
+    --accent:    #2060E8;
+    --accent-bg: color-mix(in srgb, #2060E8 15%, transparent);
+
+    --green:     #5DCAA5;
+    --green-bg:  rgba(93,202,165,0.12);
+    --red:       #E8A5A5;
+    --red-bg:    rgba(232,165,165,0.12);
+    --yellow:    #D4A84B;
+    --yellow-bg: rgba(212,168,75,0.12);
+
+    color-scheme: dark;
   }
 
   * {
-    @apply border-gray-800;
+    border-color: var(--border);
+  }
+
+  html, body, #root {
+    height: 100%;
   }
 
   body {
-    @apply bg-gray-950 text-white antialiased;
+    background: var(--bg);
+    color: var(--text-1);
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
   }
 }
 
-/* Scrollbar */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
+/* Scrollbar fina */
+::-webkit-scrollbar       { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
-  background: #374151;
+  background: var(--border-2);
   border-radius: 3px;
 }
-::-webkit-scrollbar-thumb:hover {
-  background: #4b5563;
-}
+::-webkit-scrollbar-thumb:hover { background: var(--text-3); }
 
-/* Animations */
+/* Animações */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
+  to   { opacity: 1; transform: translateY(0); }
 }
+.animate-fadeIn { animation: fadeIn 0.3s ease-out; }
 
-.animate-fadeIn {
-  animation: fadeIn 0.3s ease-out;
+@keyframes pageIn {
+  from { opacity: 0; transform: translateY(7px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
+.page-enter { animation: pageIn 0.22s ease forwards; }

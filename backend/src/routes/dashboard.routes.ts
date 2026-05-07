@@ -7,5 +7,7 @@ const router = Router();
 router.get('/metrics',      authenticate, (req, res, next) => dashboardController.getMetrics(req as any, res, next));
 router.get('/goal-progress', authenticate, (req, res, next) => dashboardController.getGoalProgress(req as any, res, next));
 router.get('/today-tasks',  authenticate, (req, res, next) => dashboardController.getTodayTasks(req as any, res, next));
+router.get('/timeseries',   authenticate, (req, res, next) => dashboardController.getTimeseries(req as any, res, next));
+router.get('/monthly',      authenticate, (req, res, next) => dashboardController.getMonthly(req as any, res, next));
 
 export default router;

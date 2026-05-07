@@ -150,6 +150,209 @@ export class DashboardService {
       throw error;
     }
   }
+
+  /**
+   * Séries temporais para os KPIs (modal "Ver mais" no dashboard).
+   * Agrega por dia (last 7d/30d) ou por mês (last 12m).
+   *
+   * metric: 'pipeline' | 'won' | 'conversion' | 'avgTicket'
+   * period: '7d' | '30d' | '12m'
+   *
+   * Retorna { points: [{ date, value }], comparison: { current, previous, deltaPct } }
+   */
+  async getTimeseries(
+    userId: number,
+    role: string,
+    metric: 'pipeline' | 'won' | 'conversion' | 'avgTicket',
+    period: '7d' | '30d' | '12m' = '30d',
+  ) {
+    try {
+      const now = new Date();
+      const ownerWhere = role !== 'admin' ? { ownerId: userId } : {};
+
+      // Buckets de tempo
+      const buckets: { start: Date; end: Date; label: string }[] = [];
+      if (period === '12m') {
+        for (let i = 11; i >= 0; i--) {
+          const start = new Date(now.getFullYear(), now.getMonth() - i, 1);
+          const end = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
+          buckets.push({ start, end, label: start.toISOString().slice(0, 7) }); // YYYY-MM
+        }
+      } else {
+        const days = period === '7d' ? 7 : 30;
+        for (let i = days - 1; i >= 0; i--) {
+          const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i, 0, 0, 0);
+          const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i + 1, 0, 0, 0);
+          buckets.push({ start, end, label: start.toISOString().slice(0, 10) }); // YYYY-MM-DD
+        }
+      }
+
+      const overallStart = buckets[0].start;
+      const overallEnd = buckets[buckets.length - 1].end;
+
+      // Para cada métrica, busca os dados relevantes uma vez
+      const points: { date: string; value: number }[] = [];
+
+      if (metric === 'pipeline') {
+        // Pipeline ativo no fim de cada bucket (cards criados <= bucket.end e não fechados antes)
+        const allCards = await prisma.card.findMany({
+          where: { ...ownerWhere, createdAt: { lte: overallEnd } },
+          select: { value: true, createdAt: true, closedAt: true, stage: true },
+        });
+        for (const b of buckets) {
+          const active = allCards.filter(c =>
+            c.createdAt <= b.end &&
+            (!c.closedAt || c.closedAt > b.end) &&
+            !['won', 'lost'].includes(c.stage),
+          );
+          const sum = active.reduce((acc, c) => acc + toNum(c.value), 0);
+          points.push({ date: b.label, value: sum });
+        }
+      } else if (metric === 'won') {
+        // Soma de cards ganhos fechados em cada bucket
+        const won = await prisma.card.findMany({
+          where: {
+            ...ownerWhere,
+            stage: 'won',
+            closedAt: { gte: overallStart, lt: overallEnd },
+          },
+          select: { value: true, closedAt: true },
+        });
+        for (const b of buckets) {
+          const inBucket = won.filter(c => c.closedAt && c.closedAt >= b.start && c.closedAt < b.end);
+          points.push({
+            date: b.label,
+            value: inBucket.reduce((acc, c) => acc + toNum(c.value), 0),
+          });
+        }
+      } else if (metric === 'conversion') {
+        // (won / (won + lost)) * 100 fechados em cada bucket
+        const closed = await prisma.card.findMany({
+          where: {
+            ...ownerWhere,
+            stage: { in: ['won', 'lost'] },
+            closedAt: { gte: overallStart, lt: overallEnd },
+          },
+          select: { stage: true, closedAt: true },
+        });
+        for (const b of buckets) {
+          const inBucket = closed.filter(c => c.closedAt && c.closedAt >= b.start && c.closedAt < b.end);
+          const w = inBucket.filter(c => c.stage === 'won').length;
+          const total = inBucket.length;
+          points.push({ date: b.label, value: total > 0 ? Math.round((w / total) * 100) : 0 });
+        }
+      } else if (metric === 'avgTicket') {
+        // Ticket médio dos cards fechados (won) em cada bucket
+        const won = await prisma.card.findMany({
+          where: {
+            ...ownerWhere,
+            stage: 'won',
+            closedAt: { gte: overallStart, lt: overallEnd },
+          },
+          select: { value: true, closedAt: true },
+        });
+        for (const b of buckets) {
+          const inBucket = won.filter(c => c.closedAt && c.closedAt >= b.start && c.closedAt < b.end);
+          const sum = inBucket.reduce((acc, c) => acc + toNum(c.value), 0);
+          points.push({
+            date: b.label,
+            value: inBucket.length > 0 ? Math.round(sum / inBucket.length) : 0,
+          });
+        }
+      }
+
+      // Comparativo: período atual vs período anterior de igual duração
+      const half = Math.floor(points.length / 2);
+      const previous = points.slice(0, half).reduce((acc, p) => acc + p.value, 0);
+      const current = points.slice(half).reduce((acc, p) => acc + p.value, 0);
+      const deltaPct = previous > 0 ? Math.round(((current - previous) / previous) * 100) : null;
+
+      return {
+        metric,
+        period,
+        points,
+        comparison: { current, previous, deltaPct },
+      };
+    } catch (error) {
+      logger.error('DashboardService.getTimeseries falhou', {
+        userId, role, metric, period,
+        error: error instanceof Error ? { name: error.name, message: error.message, stack: error.stack } : error,
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Métricas filtradas por mês específico (YYYY-MM).
+   * Mesmo formato de getMetrics, mas considera só cards/tasks do mês.
+   */
+  async getMonthlyMetrics(userId: number, role: string, monthStr: string) {
+    try {
+      const [year, month] = monthStr.split('-').map(Number);
+      if (!year || !month || month < 1 || month > 12) {
+        throw new Error(`Formato de mês inválido: ${monthStr}. Use YYYY-MM.`);
+      }
+      const start = new Date(year, month - 1, 1);
+      const end = new Date(year, month, 1);
+
+      const ownerWhere = role !== 'admin' ? { ownerId: userId } : {};
+
+      const [activeCards, wonInMonth, lostInMonth, contactCount, pendingTasks] = await Promise.all([
+        // Pipeline ativo NO FIM do mês
+        prisma.card.findMany({
+          where: {
+            ...ownerWhere,
+            createdAt: { lt: end },
+            OR: [{ closedAt: null }, { closedAt: { gte: end } }],
+            stage: { notIn: ['won', 'lost'] },
+          },
+          select: { value: true },
+        }),
+        prisma.card.findMany({
+          where: { ...ownerWhere, stage: 'won', closedAt: { gte: start, lt: end } },
+          select: { value: true },
+        }),
+        prisma.card.count({
+          where: { ...ownerWhere, stage: 'lost', closedAt: { gte: start, lt: end } },
+        }),
+        role !== 'admin'
+          ? prisma.contact.count({ where: { ownerId: userId, createdAt: { lt: end } } })
+          : prisma.contact.count({ where: { createdAt: { lt: end } } }),
+        prisma.task.count({
+          where: {
+            status: 'pending',
+            dueDate: { gte: start, lt: end },
+            ...(role !== 'admin' ? { ownerId: userId } : {}),
+          },
+        }),
+      ]);
+
+      const totalPipeline = activeCards.reduce((acc, c) => acc + toNum(c.value), 0);
+      const wonValue = wonInMonth.reduce((acc, c) => acc + toNum(c.value), 0);
+      const wonCount = wonInMonth.length;
+      const totalClosed = wonCount + lostInMonth;
+
+      return {
+        month: monthStr,
+        totalPipeline,
+        wonDeals: wonValue,
+        wonCount,
+        lostCount: lostInMonth,
+        activeDeals: activeCards.length,
+        conversionRate: totalClosed > 0 ? Math.round((wonCount / totalClosed) * 100) : 0,
+        avgDealValue: wonCount > 0 ? Math.round(wonValue / wonCount) : 0,
+        contactCount,
+        pendingTasks,
+        isEmpty: activeCards.length === 0 && wonCount === 0 && lostInMonth === 0,
+      };
+    } catch (error) {
+      logger.error('DashboardService.getMonthlyMetrics falhou', {
+        userId, role, monthStr,
+        error: error instanceof Error ? { name: error.name, message: error.message, stack: error.stack } : error,
+      });
+      throw error;
+    }
+  }
 }
 
 export const dashboardService = new DashboardService();

@@ -26,6 +26,9 @@ export class ProductController {
       res.json(apiResponse(null, 'Produto desativado'));
     } catch (e) { next(e); }
   }
+  async getStats(_req: AuthRequest, res: Response, next: NextFunction) {
+    try { res.json(apiResponse(await productService.getStats())); } catch (e) { next(e); }
+  }
 }
 
 export const productController = new ProductController();
