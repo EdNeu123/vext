@@ -1,67 +1,78 @@
 import { useState } from 'react';
-import { useAuthStore } from '../../store/authStore';
 import { useUiStore } from '../../store/uiStore';
 import { useNotificationStore } from '../../store/notificationStore';
 import { formatRelative } from '../../utils/format';
-import { Menu, Bell, Check, LogOut } from 'lucide-react';
+import { Bell, Sun, Moon } from 'lucide-react';
 
 export default function Header() {
-  const { user, logout } = useAuthStore();
-  const { toggleSidebar } = useUiStore();
+  const { dark, toggleDark } = useUiStore();
   const { notifications, unreadCount, markAllAsRead } = useNotificationStore();
   const [showNotif, setShowNotif] = useState(false);
 
   return (
-    <header className="h-16 border-b border-gray-800 flex items-center justify-between px-6 bg-gray-900/50 backdrop-blur-xl">
-      <button onClick={toggleSidebar} className="lg:hidden text-gray-400 hover:text-white"><Menu size={20} /></button>
+    <header className="h-14 flex items-center px-4 sm:px-6 gap-3 bg-surface border-b border-border flex-shrink-0">
       <div className="flex-1" />
 
-      <div className="flex items-center gap-4">
-        <div className="relative">
-          <button onClick={() => setShowNotif(!showNotif)} className="relative text-gray-400 hover:text-white transition">
-            <Bell size={20} />
-            {unreadCount > 0 && (
-              <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-500 rounded-full flex items-center justify-center text-[10px] font-bold">
-                {unreadCount > 9 ? '9+' : unreadCount}
-              </span>
-            )}
-          </button>
+      {/* Toggle Light / Dark */}
+      <button
+        onClick={toggleDark}
+        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-surface-2 border border-border text-text-2 text-xs font-medium hover:text-text-1 transition"
+        title={dark ? 'Mudar para claro' : 'Mudar para escuro'}
+      >
+        {dark ? <><Sun size={13} /> Light</> : <><Moon size={13} /> Dark</>}
+      </button>
 
-          {showNotif && (
-            <div className="absolute right-0 top-10 w-80 bg-gray-900 border border-gray-700 rounded-xl shadow-2xl z-50 max-h-96 overflow-y-auto">
-              <div className="flex items-center justify-between p-3 border-b border-gray-800">
-                <span className="text-sm font-semibold">Notificações</span>
+      {/* Notificações */}
+      <div className="relative">
+        <button
+          onClick={() => setShowNotif((v) => !v)}
+          className="relative text-text-2 hover:text-text-1 transition p-1"
+          aria-label="Notificações"
+        >
+          <Bell size={18} />
+          {unreadCount > 0 && (
+            <span
+              className="absolute top-0 right-0 min-w-[15px] h-[15px] rounded-full inline-flex items-center justify-center text-[9px] font-bold text-white"
+              style={{ background: 'var(--red)' }}
+            >
+              {unreadCount > 9 ? '9+' : unreadCount}
+            </span>
+          )}
+        </button>
+
+        {showNotif && (
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => setShowNotif(false)} />
+            <div className="absolute right-0 top-9 w-80 max-w-[calc(100vw-2rem)] max-h-96 overflow-y-auto rounded-xl border border-border bg-surface shadow-2xl z-50">
+              <div className="flex items-center justify-between px-4 py-2.5 border-b border-border">
+                <span className="text-[13px] font-semibold text-text-1">Notificações</span>
                 {unreadCount > 0 && (
-                  <button onClick={() => markAllAsRead()} className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1">
-                    <Check size={12} /> Marcar todas
+                  <button
+                    onClick={() => markAllAsRead()}
+                    className="text-[11px] text-accent hover:opacity-80 transition font-medium"
+                  >
+                    Marcar todas
                   </button>
                 )}
               </div>
+
               {notifications.length === 0 ? (
-                <p className="p-4 text-sm text-gray-500 text-center">Nenhuma notificação</p>
+                <p className="p-4 text-sm text-text-3 text-center">Nenhuma notificação</p>
               ) : (
                 notifications.slice(0, 10).map((n) => (
-                  <div key={n.id} className={`p-3 border-b border-gray-800/50 ${!n.isRead ? 'bg-indigo-500/5' : ''}`}>
-                    <p className="text-sm font-medium">{n.title}</p>
-                    {n.message && <p className="text-xs text-gray-500 mt-0.5">{n.message}</p>}
-                    <p className="text-[10px] text-gray-600 mt-1">{formatRelative(n.createdAt)}</p>
+                  <div
+                    key={n.id}
+                    className={`px-4 py-2.5 border-b border-border ${!n.isRead ? 'bg-accent-bg' : ''}`}
+                  >
+                    <p className="text-[13px] font-medium text-text-1">{n.title}</p>
+                    {n.message && <p className="text-[11px] text-text-3 mt-0.5">{n.message}</p>}
+                    <p className="text-[10px] text-text-3 mt-1">{formatRelative(n.createdAt)}</p>
                   </div>
                 ))
               )}
             </div>
-          )}
-        </div>
-
-        <div className="flex items-center gap-3 pl-4 border-l border-gray-800">
-          <div className="w-8 h-8 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 flex items-center justify-center text-sm font-bold">
-            {user?.name?.charAt(0)?.toUpperCase() || 'U'}
-          </div>
-          <div className="hidden sm:block">
-            <p className="text-sm font-medium text-white">{user?.name}</p>
-            <p className="text-xs text-gray-500">{user?.role === 'admin' ? 'Administrador' : 'Vendedor'}</p>
-          </div>
-          <button onClick={logout} className="text-gray-400 hover:text-red-400 transition ml-2" title="Sair"><LogOut size={18} /></button>
-        </div>
+          </>
+        )}
       </div>
     </header>
   );

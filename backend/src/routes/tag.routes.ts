@@ -5,9 +5,10 @@ import { createTagSchema, updateTagSchema } from '../models/schemas';
 
 const router = Router();
 
-router.get('/',       authenticate,                        (req, res, next) => tagController.list(req as any, res, next));
-router.post('/',      authenticate, validate(createTagSchema), (req, res, next) => tagController.create(req as any, res, next));
-router.put('/:id',    authenticate, validate(updateTagSchema), (req, res, next) => tagController.update(req as any, res, next));
-router.delete('/:id', authenticate,                        (req, res, next) => tagController.delete(req as any, res, next));
+router.get('/',           authenticate,                        (req, res, next) => tagController.list(req as any, res, next));
+router.get('/:id/usage',  authenticate,                        (req, res, next) => tagController.getUsage(req as any, res, next));
+router.post('/',          authenticate, validate(createTagSchema), (req, res, next) => tagController.create(req as any, res, next));
+router.put('/:id',        authenticate, validate(updateTagSchema), (req, res, next) => tagController.update(req as any, res, next));
+router.delete('/:id',     authenticate,                        (req, res, next) => tagController.delete(req as any, res, next));
 
 export default router;

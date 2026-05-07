@@ -1,7 +1,22 @@
 import { prisma } from '../config/prisma';
 import { ApiError, calculateDealProbability } from '../utils/helpers';
 import { auditService } from './audit.service';
+import { cardEventService } from './card-event.service';
 import type { CreateCardInput, UpdateCardInput } from '../models/schemas';
+
+const STAGE_LABELS: Record<string, string> = {
+  prospecting: 'Prospecção',
+  qualification: 'Qualificação',
+  presentation: 'Apresentação',
+  negotiation: 'Negociação',
+  won: 'Ganho',
+  lost: 'Perdido',
+};
+
+const fmtMoney = (v: unknown) => {
+  const n = Number(v ?? 0);
+  return Number.isFinite(n) ? n.toFixed(2) : '0.00';
+};
 
 export class CardService {
   async list(userId: number, role: string, page = 1, limit = 50) {
@@ -68,6 +83,14 @@ export class CardService {
     }
 
     await auditService.log('card', card.id, 'Card Criado', userId, userName);
+    await cardEventService.log({
+      cardId: card.id,
+      type: 'created',
+      toValue: STAGE_LABELS[card.stage] ?? card.stage,
+      description: `Card "${card.title}" criado`,
+      userId,
+      userName,
+    });
     return this.getById(card.id);
   }
 
@@ -110,6 +133,66 @@ export class CardService {
     }
 
     await auditService.log('card', id, 'Card Atualizado', userId, userName, undefined, reason);
+
+    // Eventos estruturados pra timeline — granulares por tipo de mudança
+    if (updateData.stage && updateData.stage !== existing.stage) {
+      let type: 'stage_changed' | 'closed_won' | 'closed_lost' = 'stage_changed';
+      if (updateData.stage === 'won') type = 'closed_won';
+      else if (updateData.stage === 'lost') type = 'closed_lost';
+
+      await cardEventService.log({
+        cardId: id,
+        type,
+        fromValue: STAGE_LABELS[existing.stage] ?? existing.stage,
+        toValue: STAGE_LABELS[updateData.stage] ?? updateData.stage,
+        description: reason ?? null,
+        userId, userName,
+      });
+    }
+
+    if (updateData.value !== undefined && Number(updateData.value) !== Number(existing.value)) {
+      await cardEventService.log({
+        cardId: id,
+        type: 'value_changed',
+        fromValue: fmtMoney(existing.value),
+        toValue: fmtMoney(updateData.value),
+        userId, userName,
+      });
+    }
+
+    if (updateData.contactId !== undefined && updateData.contactId !== existing.contactId) {
+      await cardEventService.log({
+        cardId: id,
+        type: 'contact_changed',
+        fromValue: existing.contact?.name ?? String(existing.contactId),
+        toValue: String(updateData.contactId),
+        userId, userName,
+      });
+    }
+
+    if (tagIds !== undefined) {
+      const oldIds = existing.tags.map(t => t.id).sort();
+      const newIds = [...tagIds].sort();
+      const changed = oldIds.length !== newIds.length || oldIds.some((id, i) => id !== newIds[i]);
+      if (changed) {
+        await cardEventService.log({
+          cardId: id,
+          type: 'tags_changed',
+          metadata: { from: oldIds, to: newIds },
+          userId, userName,
+        });
+      }
+    }
+
+    if (updateData.notes && updateData.notes !== existing.notes) {
+      await cardEventService.log({
+        cardId: id,
+        type: 'note_added',
+        description: updateData.notes.slice(0, 200),
+        userId, userName,
+      });
+    }
+
     return this.getById(id);
   }
 
@@ -118,6 +201,7 @@ export class CardService {
     await auditService.log('card', id, 'Card Deletado', userId, userName);
     await prisma.cardTag.deleteMany({ where: { cardId: id } });
     await prisma.card.delete({ where: { id } });
+    // CardEvent é deletado em cascade via FK
   }
 
   async getStats(userId: number, role: string) {
@@ -168,7 +252,6 @@ export class CardService {
           : null,
       };
     } catch (error) {
-      // Log estruturado — Vercel Runtime Logs mostram isso
       // eslint-disable-next-line no-console
       console.error('[CardService.getStats] erro:', {
         userId, role,

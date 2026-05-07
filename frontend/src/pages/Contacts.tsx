@@ -1,153 +1,246 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { contactService } from '../services';
-import { formatCurrency, formatDate } from '../utils/format';
+import { formatCurrency } from '../utils/format';
+import { initialsOf, colorForName } from '../utils/avatar';
 import { toast } from 'sonner';
 import Modal from '../components/ui/Modal';
-import { Plus, Search, Edit2, Trash2, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
+import PrimaryButton from '../components/ui/PrimaryButton';
+import { Badge, FormField, Input } from '../components/ui/Form';
+import Avatar from '../components/ui/Avatar';
+import { Plus, Search, Pencil, Trash2 } from 'lucide-react';
 import type { Contact } from '../models';
 
-const CHURN_COLORS = { low: 'text-emerald-400 bg-emerald-400/10', medium: 'text-yellow-400 bg-yellow-400/10', high: 'text-red-400 bg-red-400/10' };
-const CHURN_LABELS = { low: 'Baixo', medium: 'Médio', high: 'Alto' };
+const CHURN_VARIANT: Record<Contact['churnRisk'], 'green' | 'yellow' | 'red'> = {
+  low: 'green',
+  medium: 'yellow',
+  high: 'red',
+};
+const CHURN_LABEL: Record<Contact['churnRisk'], string> = {
+  low: 'Baixo',
+  medium: 'Médio',
+  high: 'Alto',
+};
+
+const EMPTY_FORM = { name: '', email: '', phone: '', company: '', position: '' };
 
 export default function Contacts() {
   const qc = useQueryClient();
   const [search, setSearch] = useState('');
-  const [page, setPage] = useState(1);
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<Contact | null>(null);
-  const [form, setForm] = useState({ name: '', email: '', phone: '', company: '', position: '', source: '' });
+  const [form, setForm] = useState(EMPTY_FORM);
 
-  const { data: result, isLoading } = useQuery({
-    queryKey: ['contacts', search, page],
-    queryFn: () => contactService.list(search || undefined, page),
+  const { data: result } = useQuery({
+    queryKey: ['contacts', search],
+    queryFn: () => contactService.list(search, 1, 200),
   });
-
-  const contacts = (result?.data || []) as Contact[];
-  const pagination = result?.pagination;
+  const contacts = ((result as any)?.data || []) as Contact[];
 
   const createMut = useMutation({
     mutationFn: (data: any) => contactService.create(data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['contacts'] }); closeModal(); toast.success('Contato criado!'); },
-    onError: (err: any) => toast.error(err.response?.data?.message || 'Erro'),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['contacts'] });
+      qc.invalidateQueries({ queryKey: ['contacts-list'] });
+      setShowModal(false);
+      setForm(EMPTY_FORM);
+      toast.success('Contato criado!');
+    },
+    onError: (err: any) => toast.error(err.response?.data?.message || 'Erro ao criar contato'),
   });
 
   const updateMut = useMutation({
     mutationFn: ({ id, data }: { id: number; data: any }) => contactService.update(id, data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['contacts'] }); closeModal(); toast.success('Contato atualizado!'); },
-    onError: (err: any) => toast.error(err.response?.data?.message || 'Erro'),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['contacts'] });
+      qc.invalidateQueries({ queryKey: ['contacts-list'] });
+      setShowModal(false);
+      setEditing(null);
+      setForm(EMPTY_FORM);
+      toast.success('Contato atualizado!');
+    },
+    onError: (err: any) => toast.error(err.response?.data?.message || 'Erro ao atualizar'),
   });
 
   const deleteMut = useMutation({
     mutationFn: (id: number) => contactService.delete(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['contacts'] }); toast.success('Contato removido!'); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['contacts'] });
+      qc.invalidateQueries({ queryKey: ['contacts-list'] });
+      toast.success('Contato removido');
+    },
+    onError: (err: any) => toast.error(err.response?.data?.message || 'Erro ao remover'),
   });
 
-  const openCreate = () => { setEditing(null); setForm({ name: '', email: '', phone: '', company: '', position: '', source: '' }); setShowModal(true); };
-  const openEdit = (c: Contact) => { setEditing(c); setForm({ name: c.name, email: c.email || '', phone: c.phone || '', company: c.company || '', position: c.position || '', source: c.source || '' }); setShowModal(true); };
-  const closeModal = () => { setShowModal(false); setEditing(null); };
+  const openCreate = () => {
+    setEditing(null);
+    setForm(EMPTY_FORM);
+    setShowModal(true);
+  };
+  const openEdit = (c: Contact) => {
+    setEditing(c);
+    setForm({
+      name: c.name,
+      email: c.email ?? '',
+      phone: c.phone ?? '',
+      company: c.company ?? '',
+      position: c.position ?? '',
+    });
+    setShowModal(true);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const data = { ...form, email: form.email || null, phone: form.phone || null, company: form.company || null, position: form.position || null, source: form.source || null };
-    if (editing) updateMut.mutate({ id: editing.id, data });
-    else createMut.mutate(data);
+    if (!form.name.trim()) return;
+    if (editing) updateMut.mutate({ id: editing.id, data: form });
+    else createMut.mutate(form);
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-4">
+    <div className="max-w-[1100px]">
+      {/* Header */}
+      <div className="flex items-start justify-between mb-5 flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold">Contatos</h1>
-          <p className="text-gray-500 mt-1">{pagination?.total || 0} registros</p>
+          <h1 className="text-xl font-bold text-text-1 tracking-tight">Contatos</h1>
+          <p className="text-[13px] text-text-3 mt-1">{contacts.length} registros</p>
         </div>
-        <button onClick={openCreate} className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 rounded-xl text-sm font-medium transition">
-          <Plus size={16} /> Novo Contato
-        </button>
+        <PrimaryButton onClick={openCreate}>
+          <Plus size={14} strokeWidth={2.5} />
+          Novo Contato
+        </PrimaryButton>
       </div>
 
       {/* Search */}
-      <div className="relative">
-        <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" />
-        <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} placeholder="Buscar por nome, email ou empresa..."
-          className="w-full pl-11 pr-4 py-2.5 bg-gray-900 border border-gray-800 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+      <div className="relative mb-4">
+        <Search
+          size={16}
+          className="absolute left-3 top-1/2 -translate-y-1/2 text-text-3 pointer-events-none"
+        />
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Buscar por nome, email ou empresa..."
+          className="w-full pl-10 pr-3 py-2.5 rounded-md bg-surface border border-border text-text-1 placeholder:text-text-3 text-[13px] focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent transition"
+        />
       </div>
 
       {/* Table */}
-      <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-gray-500 border-b border-gray-800">
-                <th className="px-6 py-3 font-medium">Nome</th>
-                <th className="px-6 py-3 font-medium hidden md:table-cell">Empresa</th>
-                <th className="px-6 py-3 font-medium hidden lg:table-cell">Email</th>
-                <th className="px-6 py-3 font-medium">Churn</th>
-                <th className="px-6 py-3 font-medium hidden lg:table-cell">LTV</th>
-                <th className="px-6 py-3 font-medium">Ações</th>
+      <div className="bg-surface border border-border rounded-xl overflow-hidden">
+        <table className="w-full text-[13px]">
+          <thead>
+            <tr className="border-b border-border">
+              {['Nome', 'Empresa', 'Email', 'Risco Churn', 'LTV', ''].map((h, i) => (
+                <th
+                  key={i}
+                  className="px-4 py-2.5 text-left text-[11px] font-semibold text-text-3 uppercase tracking-wider"
+                >
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {contacts.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="px-4 py-8 text-center text-text-3">
+                  {search ? 'Nenhum contato encontrado' : 'Sem contatos ainda. Clique em "Novo Contato".'}
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {isLoading ? (
-                <tr><td colSpan={6} className="px-6 py-12 text-center text-gray-500">Carregando...</td></tr>
-              ) : contacts.length === 0 ? (
-                <tr><td colSpan={6} className="px-6 py-12 text-center text-gray-500">Nenhum contato encontrado</td></tr>
-              ) : contacts.map((c) => (
-                <tr key={c.id} className="border-b border-gray-800/50 hover:bg-gray-800/30 transition">
-                  <td className="px-6 py-3">
-                    <p className="font-medium">{c.name}</p>
-                    <p className="text-xs text-gray-500">{c.position}</p>
+            ) : (
+              contacts.map((c) => (
+                <tr key={c.id} className="border-b border-border last:border-0 hover:bg-surface-2 transition">
+                  <td className="px-4 py-2.5">
+                    <div className="flex items-center gap-2.5">
+                      <Avatar initials={initialsOf(c.name)} size={28} color={colorForName(c.name)} />
+                      <div>
+                        <div className="font-medium text-text-1">{c.name}</div>
+                        {c.position && (
+                          <div className="text-[11px] text-text-3">{c.position}</div>
+                        )}
+                      </div>
+                    </div>
                   </td>
-                  <td className="px-6 py-3 hidden md:table-cell text-gray-400">{c.company || '-'}</td>
-                  <td className="px-6 py-3 hidden lg:table-cell text-gray-400">{c.email || '-'}</td>
-                  <td className="px-6 py-3">
-                    <span className={`text-xs px-2 py-1 rounded-full font-medium ${CHURN_COLORS[c.churnRisk]}`}>
-                      {c.churnRisk === 'high' && <AlertCircle size={10} className="inline mr-1" />}
-                      {CHURN_LABELS[c.churnRisk]}
-                    </span>
+                  <td className="px-4 py-2.5 text-text-2">{c.company ?? '—'}</td>
+                  <td className="px-4 py-2.5 text-text-2">{c.email ?? '—'}</td>
+                  <td className="px-4 py-2.5">
+                    <Badge variant={CHURN_VARIANT[c.churnRisk]}>{CHURN_LABEL[c.churnRisk]}</Badge>
                   </td>
-                  <td className="px-6 py-3 hidden lg:table-cell text-gray-400">{formatCurrency(Number(c.ltv) || 0)}</td>
-                  <td className="px-6 py-3">
-                    <div className="flex gap-2">
-                      <button onClick={() => openEdit(c)} className="text-gray-400 hover:text-indigo-400 transition"><Edit2 size={16} /></button>
-                      <button onClick={() => { if (confirm('Remover contato?')) deleteMut.mutate(c.id); }} className="text-gray-400 hover:text-red-400 transition"><Trash2 size={16} /></button>
+                  <td className="px-4 py-2.5 font-medium text-text-1">{formatCurrency(c.ltv)}</td>
+                  <td className="px-4 py-2.5">
+                    <div className="flex gap-1">
+                      <button
+                        onClick={() => openEdit(c)}
+                        className="text-text-3 hover:text-text-1 transition p-1"
+                        aria-label="Editar"
+                      >
+                        <Pencil size={14} />
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (confirm(`Excluir contato "${c.name}"?`)) deleteMut.mutate(c.id);
+                        }}
+                        className="text-text-3 hover:text-danger transition p-1"
+                        aria-label="Excluir"
+                      >
+                        <Trash2 size={14} />
+                      </button>
                     </div>
                   </td>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Pagination */}
-        {pagination && pagination.totalPages > 1 && (
-          <div className="flex items-center justify-between px-6 py-3 border-t border-gray-800">
-            <span className="text-xs text-gray-500">Página {pagination.page} de {pagination.totalPages}</span>
-            <div className="flex gap-2">
-              <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={!pagination.hasPrev}
-                className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 disabled:opacity-30 transition"><ChevronLeft size={16} /></button>
-              <button onClick={() => setPage((p) => p + 1)} disabled={!pagination.hasNext}
-                className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 disabled:opacity-30 transition"><ChevronRight size={16} /></button>
-            </div>
-          </div>
-        )}
+              ))
+            )}
+          </tbody>
+        </table>
       </div>
 
       {/* Modal */}
-      <Modal open={showModal} onClose={closeModal} title={editing ? 'Editar Contato' : 'Novo Contato'}>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {['name', 'email', 'phone', 'company', 'position', 'source'].map((field) => (
-            <div key={field}>
-              <label className="block text-sm text-gray-400 mb-1 capitalize">{field === 'name' ? 'Nome *' : field === 'phone' ? 'Telefone' : field === 'company' ? 'Empresa' : field === 'position' ? 'Cargo' : field === 'source' ? 'Origem' : 'Email'}</label>
-              <input value={(form as any)[field]} onChange={(e) => setForm({ ...form, [field]: e.target.value })}
-                required={field === 'name'} type={field === 'email' ? 'email' : 'text'}
-                className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-            </div>
-          ))}
-          <button type="submit" disabled={createMut.isPending || updateMut.isPending}
-            className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 rounded-xl font-semibold transition disabled:opacity-50">
-            {(createMut.isPending || updateMut.isPending) ? 'Salvando...' : editing ? 'Atualizar' : 'Criar'}
-          </button>
+      <Modal
+        open={showModal}
+        onClose={() => { setShowModal(false); setEditing(null); }}
+        title={editing ? 'Editar Contato' : 'Novo Contato'}
+      >
+        <form onSubmit={handleSubmit}>
+          <FormField label="Nome *">
+            <Input
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              required
+            />
+          </FormField>
+          <FormField label="Email">
+            <Input
+              type="email"
+              value={form.email}
+              onChange={(e) => setForm({ ...form, email: e.target.value })}
+            />
+          </FormField>
+          <FormField label="Telefone">
+            <Input
+              value={form.phone}
+              onChange={(e) => setForm({ ...form, phone: e.target.value })}
+            />
+          </FormField>
+          <FormField label="Empresa">
+            <Input
+              value={form.company}
+              onChange={(e) => setForm({ ...form, company: e.target.value })}
+            />
+          </FormField>
+          <FormField label="Cargo">
+            <Input
+              value={form.position}
+              onChange={(e) => setForm({ ...form, position: e.target.value })}
+            />
+          </FormField>
+          <PrimaryButton
+            type="submit"
+            fullWidth
+            disabled={createMut.isPending || updateMut.isPending}
+          >
+            {(createMut.isPending || updateMut.isPending)
+              ? 'Salvando...'
+              : editing ? 'Atualizar' : 'Criar Contato'}
+          </PrimaryButton>
         </form>
       </Modal>
     </div>
