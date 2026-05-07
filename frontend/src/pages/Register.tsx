@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { toast } from 'sonner';
+import PrimaryButton from '../components/ui/PrimaryButton';
+import { FormField, Input } from '../components/ui/Form';
 
 export default function Register() {
   const navigate = useNavigate();
@@ -29,39 +31,52 @@ export default function Register() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-950 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-bg flex items-center justify-center p-4">
       <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">Vext CRM</h1>
-          <p className="text-gray-500 mt-2">Crie sua conta</p>
+        <div className="text-center mb-7">
+          <div className="flex items-center justify-center gap-2.5 mb-2">
+            <svg width="36" height="36" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <rect width="28" height="28" rx="7" fill="var(--accent)" />
+              <path d="M7 9L11.5 19L14 13.5L16.5 19L21 9" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+              <circle cx="14" cy="20" r="1.5" fill="white" fillOpacity="0.5" />
+            </svg>
+            <span className="text-2xl font-bold tracking-tight">
+              <span className="text-text-1">Vext</span>
+              <span className="text-accent"> CRM</span>
+            </span>
+          </div>
+          <p className="text-text-3 text-[13px]">Crie sua conta</p>
         </div>
-        <form onSubmit={handleSubmit} className="bg-gray-900 border border-gray-800 rounded-2xl p-8 space-y-5">
+
+        <form onSubmit={handleSubmit} className="bg-surface border border-border rounded-xl p-7">
           {inviteToken && (
-            <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-xl p-3 text-sm text-indigo-300">
+            <div className="bg-accent-bg border border-border rounded-md p-2.5 text-[12px] text-accent mb-3.5">
               Registrando via convite
             </div>
           )}
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1.5">Nome</label>
-            <input type="text" value={name} onChange={(e) => setName(e.target.value)} required
-              className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1.5">Email</label>
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required
-              className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1.5">Senha</label>
-            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6}
-              className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-          </div>
-          <button type="submit" disabled={loading}
-            className="w-full py-3 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl font-semibold hover:from-indigo-500 hover:to-purple-500 transition disabled:opacity-50">
+          <FormField label="Nome">
+            <Input value={name} onChange={(e) => setName(e.target.value)} required />
+          </FormField>
+          <FormField label="Email">
+            <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+          </FormField>
+          <FormField label="Senha">
+            <Input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              minLength={6}
+            />
+          </FormField>
+          <PrimaryButton type="submit" fullWidth disabled={loading}>
             {loading ? 'Criando...' : 'Criar Conta'}
-          </button>
-          <p className="text-center text-sm text-gray-500">
-            Já tem conta? <Link to="/login" className="text-indigo-400 hover:text-indigo-300">Entrar</Link>
+          </PrimaryButton>
+          <p className="text-center text-[13px] text-text-3 mt-4">
+            Já tem conta?{' '}
+            <Link to="/login" className="text-accent hover:opacity-80 font-medium">
+              Entrar
+            </Link>
           </p>
         </form>
       </div>

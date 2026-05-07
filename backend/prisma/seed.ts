@@ -6,7 +6,10 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('🌱 Seeding database...');
 
-  // Admin - senha segura gerada via env ou fallback para dev
+  // ====================================================================
+  // USUÁRIO ADMIN
+  // ====================================================================
+
   const adminPassword = process.env.ADMIN_SEED_PASSWORD || 'VextAdmin@2025!';
   const hashedPassword = await bcrypt.hash(adminPassword, 12);
 
@@ -21,9 +24,12 @@ async function main() {
       salesGoal: 100000,
     },
   });
-  console.log(`  ✅ Admin criado: ${admin.email} (senha: ${adminPassword})`);
+  console.log(`  ✅ Admin: ${admin.email} (senha: ${adminPassword})`);
 
-  // Tags padrão
+  // ====================================================================
+  // TAGS
+  // ====================================================================
+
   const tags = [
     { label: 'Hot Lead', color: '#ef4444' },
     { label: 'Indicação', color: '#f59e0b' },
@@ -32,35 +38,35 @@ async function main() {
     { label: 'Urgente', color: '#ec4899' },
     { label: 'Enterprise', color: '#10b981' },
   ];
-
   for (const tag of tags) {
-    await prisma.tag.upsert({
-      where: { label: tag.label },
-      update: {},
-      create: tag,
-    });
+    await prisma.tag.upsert({ where: { label: tag.label }, update: {}, create: tag });
   }
-  console.log(`  ✅ ${tags.length} tags criadas`);
+  console.log(`  ✅ ${tags.length} tags`);
 
-  // Produtos de exemplo
+  // ====================================================================
+  // PRODUTOS
+  // ====================================================================
+
   const products = [
-    { name: 'Plano Starter', price: 99.90, description: 'Ideal para pequenas empresas' },
+    { name: 'Plano Starter',      price: 99.90,  description: 'Ideal para pequenas empresas' },
     { name: 'Plano Professional', price: 299.90, description: 'Para equipes em crescimento' },
-    { name: 'Plano Enterprise', price: 799.90, description: 'Para grandes operações' },
+    { name: 'Plano Enterprise',   price: 799.90, description: 'Para grandes operações' },
   ];
-
-  for (const product of products) {
+  for (const p of products) {
     await prisma.product.upsert({
-      where: { id: products.indexOf(product) + 1 },
+      where: { id: products.indexOf(p) + 1 },
       update: {},
-      create: product,
+      create: p,
     });
   }
-  console.log(`  ✅ ${products.length} produtos criados`);
+  console.log(`  ✅ ${products.length} produtos`);
 
   console.log('✨ Seed concluído!');
 }
 
 main()
-  .catch(console.error)
+  .catch((err) => {
+    console.error(err);
+    process.exit(1);
+  })
   .finally(() => prisma.$disconnect());

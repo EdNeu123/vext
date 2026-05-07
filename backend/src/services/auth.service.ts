@@ -12,32 +12,24 @@ import type { LoginInput, RegisterInput } from '../models/schemas';
 export class AuthService {
   async login(input: LoginInput) {
     const user = await prisma.user.findUnique({ where: { email: input.email } });
+    if (!user) throw ApiError.unauthorized('Credenciais inválidas');
+    if (!user.isActive) throw ApiError.forbidden('Sua conta está bloqueada');
 
-    if (!user || !user.isActive) {
-      throw ApiError.unauthorized('Credenciais inválidas');
-    }
-
-    const isValidPassword = await comparePassword(input.password, user.password);
-    if (!isValidPassword) {
-      throw ApiError.unauthorized('Credenciais inválidas');
-    }
+    const isValid = await comparePassword(input.password, user.password);
+    if (!isValid) throw ApiError.unauthorized('Credenciais inválidas');
 
     await prisma.user.update({
       where: { id: user.id },
       data: { lastSignedIn: new Date() },
     });
 
-    const accessToken = generateAccessToken({
-      userId: user.id,
-      email: user.email,
-      name: user.name,
-      role: user.role,
+    const accessToken  = generateAccessToken({
+      userId: user.id, email: user.email, name: user.name, role: user.role,
     });
-
     const refreshToken = await generateRefreshToken(user.id);
 
-    const { password: _, ...userWithoutPassword } = user;
-    return { user: userWithoutPassword, accessToken, refreshToken };
+    const { password: _, ...userPub } = user;
+    return { user: userPub, accessToken, refreshToken };
   }
 
   async register(input: RegisterInput) {
@@ -49,17 +41,14 @@ export class AuthService {
 
     if (input.inviteToken) {
       const invite = await prisma.invite.findUnique({ where: { token: input.inviteToken } });
-
       if (!invite || invite.status !== 'pending' || new Date() > invite.expiresAt) {
         throw ApiError.badRequest('Convite inválido ou expirado');
       }
-
       role = invite.role;
       inviteId = invite.id;
     }
 
     const hashedPassword = await hashPassword(input.password);
-
     const user = await prisma.user.create({
       data: { name: input.name, email: input.email, password: hashedPassword, role },
     });
@@ -71,25 +60,17 @@ export class AuthService {
       });
     }
 
-    const accessToken = generateAccessToken({
-      userId: user.id,
-      email: user.email,
-      name: user.name,
-      role: user.role,
+    const accessToken  = generateAccessToken({
+      userId: user.id, email: user.email, name: user.name, role: user.role,
     });
-
     const refreshToken = await generateRefreshToken(user.id);
 
-    const { password: _, ...userWithoutPassword } = user;
-    return { user: userWithoutPassword, accessToken, refreshToken };
+    const { password: _, ...userPub } = user;
+    return { user: userPub, accessToken, refreshToken };
   }
 
   async refreshToken(token: string) {
-    const result = await rotateRefreshToken(token);
-    if (!result) {
-      throw ApiError.unauthorized('Refresh token inválido ou expirado');
-    }
-    return result;
+    return rotateRefreshToken(token);
   }
 
   async logout(userId: number) {
@@ -110,13 +91,11 @@ export class AuthService {
   }
 
   async updateProfile(userId: number, data: Record<string, any>) {
-    // Whitelist explícita — impede Mass Assignment (ex: role, password, isActive)
     const allowed: (keyof typeof data)[] = ['name', 'phone', 'salesGoal'];
     const safe: Record<string, any> = {};
     for (const key of allowed) {
       if (data[key] !== undefined) safe[key] = data[key];
     }
-    // avatar: apenas URLs https para evitar SSRF e javascript:
     if (data.avatar !== undefined) {
       const url = String(data.avatar);
       if (!/^https:\/\/.+/.test(url)) throw new Error('Avatar deve ser uma URL HTTPS válida');

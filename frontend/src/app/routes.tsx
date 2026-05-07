@@ -11,6 +11,8 @@ import Products     from '../pages/Products';
 import Team         from '../pages/Team';
 import Tags         from '../pages/Tags';
 import VextRadar    from '../pages/VextRadar';
+import Settings     from '../pages/Settings';
+import Menu         from '../pages/Menu';
 import NotFound     from '../pages/NotFound';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -34,6 +36,8 @@ export default function AppRoutes() {
       <Route path="/team"       element={<ProtectedRoute><Team /></ProtectedRoute>} />
       <Route path="/tags"       element={<ProtectedRoute><Tags /></ProtectedRoute>} />
       <Route path="/vext-radar" element={<ProtectedRoute><VextRadar /></ProtectedRoute>} />
+      <Route path="/settings"   element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+      <Route path="/menu"       element={<ProtectedRoute><Menu /></ProtectedRoute>} />
 
       <Route path="*" element={<NotFound />} />
     </Routes>

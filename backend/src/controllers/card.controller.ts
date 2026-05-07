@@ -1,5 +1,6 @@
 import { Response, NextFunction } from 'express';
 import { cardService } from '../services/card.service';
+import { cardEventService } from '../services/card-event.service';
 import { AuthRequest } from '../middlewares/auth.middleware';
 import { apiResponse, paginatedResponse, extractPagination } from '../utils/helpers';
 
@@ -42,6 +43,15 @@ export class CardController {
   async getStats(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       res.json(apiResponse(await cardService.getStats(req.user!.id, req.user!.role)));
+    } catch (e) { next(e); }
+  }
+
+  async getEvents(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      // valida que o user pode ver o card antes de listar eventos
+      await cardService.getById(Number(req.params.id), req.user!.id, req.user!.role);
+      const events = await cardEventService.listByCard(Number(req.params.id));
+      res.json(apiResponse(events));
     } catch (e) { next(e); }
   }
 }

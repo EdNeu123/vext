@@ -6,6 +6,7 @@ import { createProductSchema, updateProductSchema } from '../models/schemas';
 const router = Router();
 
 router.get('/',       authenticate,                                           (req, res, next) => productController.list(req as any, res, next));
+router.get('/stats',  authenticate,                                           (req, res, next) => productController.getStats(req as any, res, next));
 router.get('/:id',    authenticate,                                           (req, res, next) => productController.getById(req as any, res, next));
 router.post('/',      authenticate, authorizeAdmin, validate(createProductSchema), (req, res, next) => productController.create(req as any, res, next));
 router.put('/:id',    authenticate, authorizeAdmin, validate(updateProductSchema), (req, res, next) => productController.update(req as any, res, next));
