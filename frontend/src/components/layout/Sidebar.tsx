@@ -4,6 +4,7 @@ import { useNotificationStore } from '../../store/notificationStore';
 import Avatar from '../ui/Avatar';
 import { initialsOf, colorForName } from '../../utils/avatar';
 import type { ReactNode } from 'react';
+import logoVext from '../../assets/img/logo.png';
 
 /* ──────────────────────────────────────────────────────────────
    Ícones — SVGs portados do vext-layout.jsx do design system.
@@ -116,12 +117,17 @@ export default function Sidebar() {
     <aside className="hidden lg:flex w-[220px] flex-col bg-surface border-r border-border flex-shrink-0">
       {/* Logo — SVG portado do design (W em retângulo accent) */}
       <div className="h-14 px-4 flex items-center gap-2.5 border-b border-border flex-shrink-0">
-        <Link to="/dashboard" className="flex items-center gap-2.5">
-          <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <Link to="/dashboard" className="flex items-center gap-1.5">
+          {/* <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
             <rect width="28" height="28" rx="7" fill="var(--accent)" />
             <path d="M7 9L11.5 19L14 13.5L16.5 19L21 9" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
             <circle cx="14" cy="20" r="1.5" fill="white" fillOpacity="0.5" />
-          </svg>
+          </svg> */}
+          <img
+              src={logoVext}
+              alt="Logo Vext CRM"
+              className="w-14 h-14 object-contain"
+            />
           <div className="leading-none">
             <span className="font-bold text-[15px] tracking-tight text-text-1">Vext</span>
             <span className="font-bold text-[15px] text-accent"> CRM</span>
