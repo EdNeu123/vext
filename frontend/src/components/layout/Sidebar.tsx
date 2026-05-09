@@ -76,6 +76,14 @@ const IconSettings = () => (
   </Icon>
 );
 
+const IconLogout = () => (
+  <Icon>
+    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+    <polyline points="16 17 21 12 16 7" />
+    <line x1="21" y1="12" x2="9" y2="12" />
+  </Icon>
+);
+
 /* ──────────────────────────────────────────────────────────────
    NAV_ITEMS — portado do design (sem Landing Pages, conforme decidido)
    Settings vai pra rota nova /settings (placeholder no momento)
@@ -101,7 +109,7 @@ const NAV_ITEMS: NavEntry[] = [
 
 export default function Sidebar() {
   const location = useLocation();
-  const { user } = useAuthStore();
+  const { user, logout } = useAuthStore();
   const { unreadCount } = useNotificationStore();
 
   // Badges — por enquanto só pipeline tem fonte real (notifications).
@@ -184,7 +192,7 @@ export default function Sidebar() {
         })}
       </nav>
 
-      {/* User no rodapé — sem botão logout (design original não tem) */}
+      {/* User no rodapé com botão de logout */}
       <div className="px-3.5 py-2.5 border-t border-border flex items-center gap-2.5 flex-shrink-0">
         <Avatar
           initials={initialsOf(user?.name)}
@@ -199,6 +207,15 @@ export default function Sidebar() {
             {user?.role === 'admin' ? 'Admin' : 'Vendedor'}
           </div>
         </div>
+        
+        {/* Botão de Logout para o Desktop */}
+        <button
+          onClick={() => logout()}
+          title="Sair"
+          className="p-1.5 text-text-3 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
+        >
+          <IconLogout />
+        </button>
       </div>
     </aside>
   );
