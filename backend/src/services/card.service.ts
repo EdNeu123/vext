@@ -19,8 +19,8 @@ const fmtMoney = (v: unknown) => {
 };
 
 export class CardService {
-  async list(userId: number, role: string, page = 1, limit = 50) {
-    const where = role !== 'admin' ? { ownerId: userId } : {};
+  async list(teamId: number, page = 1, limit = 50) {
+    const where = { teamId };
 
     const [rawDeals, total] = await Promise.all([
       prisma.card.findMany({
@@ -46,9 +46,9 @@ export class CardService {
     return { data, total };
   }
 
-  async getById(id: number, requesterId?: number, requesterRole?: string) {
-    const card = await prisma.card.findUnique({
-      where: { id },
+  async getById(id: number, teamId: number) {
+    const card = await prisma.card.findFirst({
+      where: { id, teamId },
       include: {
         contact: { select: { id: true, name: true, company: true, email: true } },
         owner: { select: { id: true, name: true } },
@@ -57,13 +57,10 @@ export class CardService {
       },
     });
     if (!card) throw ApiError.notFound('Oportunidade não encontrada');
-    if (requesterId && requesterRole !== 'admin' && card.ownerId !== requesterId) {
-      throw ApiError.forbidden('Acesso negado');
-    }
     return { ...card, tags: card.tags.map((dt) => dt.tag) };
   }
 
-  async create(data: CreateCardInput, userId: number, userName: string) {
+  async create(data: CreateCardInput, userId: number, userName: string, teamId: number) {
     const { tagIds, nextFollowUpDate, ...dealData } = data;
     const probability = calculateDealProbability({ stage: dealData.stage || 'prospecting' });
 
@@ -71,6 +68,7 @@ export class CardService {
       data: {
         ...dealData,
         ownerId: userId,
+        teamId,
         probability,
         nextFollowUpDate: nextFollowUpDate ? new Date(nextFollowUpDate) : null,
       },
@@ -82,7 +80,7 @@ export class CardService {
       });
     }
 
-    await auditService.log('card', card.id, 'Card Criado', userId, userName);
+    await auditService.log('card', card.id, 'Card Criado', userId, userName, undefined, undefined, teamId);
     await cardEventService.log({
       cardId: card.id,
       type: 'created',
@@ -91,11 +89,11 @@ export class CardService {
       userId,
       userName,
     });
-    return this.getById(card.id);
+    return this.getById(card.id, teamId);
   }
 
-  async update(id: number, data: UpdateCardInput, userId: number, userName: string, userRole: string) {
-    const existing = await this.getById(id, userId, userRole);
+  async update(id: number, data: UpdateCardInput, userId: number, userName: string, teamId: number) {
+    const existing = await this.getById(id, teamId);
     const { tagIds, reason, nextFollowUpDate, ...updateData } = data;
 
     const probability = calculateDealProbability({
@@ -132,7 +130,7 @@ export class CardService {
       }
     }
 
-    await auditService.log('card', id, 'Card Atualizado', userId, userName, undefined, reason);
+    await auditService.log('card', id, 'Card Atualizado', userId, userName, undefined, reason, teamId);
 
     // Eventos estruturados pra timeline — granulares por tipo de mudança
     if (updateData.stage && updateData.stage !== existing.stage) {
@@ -193,72 +191,63 @@ export class CardService {
       });
     }
 
-    return this.getById(id);
+    return this.getById(id, teamId);
   }
 
-  async delete(id: number, userId: number, userName: string, userRole: string) {
-    await this.getById(id, userId, userRole);
-    await auditService.log('card', id, 'Card Deletado', userId, userName);
+  async delete(id: number, userId: number, userName: string, teamId: number) {
+    await this.getById(id, teamId);
+    await auditService.log('card', id, 'Card Deletado', userId, userName, undefined, undefined, teamId);
     await prisma.cardTag.deleteMany({ where: { cardId: id } });
     await prisma.card.delete({ where: { id } });
     // CardEvent é deletado em cascade via FK
   }
 
-  async getStats(userId: number, role: string) {
-    try {
-      const where = role !== 'admin' ? { ownerId: userId } : {};
-      const cardsRaw = await prisma.card.findMany({
-        where,
-        select: { stage: true, value: true },
-      });
+  async getStats(teamId: number) {
+    const where = { teamId };
+    const cardsRaw = await prisma.card.findMany({
+      where,
+      select: { stage: true, value: true },
+    });
 
-      type CardSlice = { stage: string; value: unknown };
-      const cards = cardsRaw as CardSlice[];
+    type CardSlice = { stage: string; value: unknown };
+    const cards = cardsRaw as CardSlice[];
 
-      const toNum = (v: unknown): number => {
-        const n = Number(v ?? 0);
-        return Number.isFinite(n) ? n : 0;
-      };
-      const sum = (arr: CardSlice[]): number =>
-        arr.reduce((acc: number, d: CardSlice) => acc + toNum(d.value), 0);
+    const toNum = (v: unknown): number => {
+      const n = Number(v ?? 0);
+      return Number.isFinite(n) ? n : 0;
+    };
+    const sum = (arr: CardSlice[]): number =>
+      arr.reduce((acc: number, d: CardSlice) => acc + toNum(d.value), 0);
 
-      const won = cards.filter((d: CardSlice) => d.stage === 'won');
-      const lost = cards.filter((d: CardSlice) => d.stage === 'lost');
-      const active = cards.filter((d: CardSlice) => !['won', 'lost'].includes(d.stage));
-      const closed = won.length + lost.length;
+    const won = cards.filter((d: CardSlice) => d.stage === 'won');
+    const lost = cards.filter((d: CardSlice) => d.stage === 'lost');
+    const active = cards.filter((d: CardSlice) => !['won', 'lost'].includes(d.stage));
+    const closed = won.length + lost.length;
 
-      const byStage = ['prospecting', 'qualification', 'presentation', 'negotiation'].map((stage: string) => {
-        const stageDeals = active.filter((d: CardSlice) => d.stage === stage);
-        return {
-          stage,
-          count: stageDeals.length,
-          value: sum(stageDeals),
-        };
-      });
-
-      const isEmpty = cards.length === 0;
-
+    const byStage = ['prospecting', 'qualification', 'presentation', 'negotiation'].map((stage: string) => {
+      const stageDeals = active.filter((d: CardSlice) => d.stage === stage);
       return {
-        totalPipeline: sum(active),
-        wonDeals: sum(won),
-        lostDeals: sum(lost),
-        activeDeals: active.length,
-        conversionRate: closed > 0 ? (won.length / closed) * 100 : 0,
-        avgDealValue: won.length > 0 ? sum(won) / won.length : 0,
-        byStage,
-        isEmpty,
-        emptyMessage: isEmpty
-          ? 'Ainda não há cards cadastrados. Crie sua primeira oportunidade para ver estatísticas.'
-          : null,
+        stage,
+        count: stageDeals.length,
+        value: sum(stageDeals),
       };
-    } catch (error) {
-      // eslint-disable-next-line no-console
-      console.error('[CardService.getStats] erro:', {
-        userId, role,
-        error: error instanceof Error ? { name: error.name, message: error.message, stack: error.stack } : error,
-      });
-      throw error;
-    }
+    });
+
+    const isEmpty = cards.length === 0;
+
+    return {
+      totalPipeline: sum(active),
+      wonDeals: sum(won),
+      lostDeals: sum(lost),
+      activeDeals: active.length,
+      conversionRate: closed > 0 ? (won.length / closed) * 100 : 0,
+      avgDealValue: won.length > 0 ? sum(won) / won.length : 0,
+      byStage,
+      isEmpty,
+      emptyMessage: isEmpty
+        ? 'Ainda não há cards cadastrados. Crie sua primeira oportunidade para ver estatísticas.'
+        : null,
+    };
   }
 }
 
