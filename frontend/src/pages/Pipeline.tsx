@@ -6,7 +6,7 @@ import { Plus, LayoutGrid, List, ChevronLeft } from 'lucide-react';
 import { cardService, contactService, teamService } from '../services';
 import type { Card, CardStage } from '../models';
 import { formatCurrency, formatCurrencyShort } from '../utils/format';
-import { useAuthStore } from '../store/authStore';
+import { useTeamStore } from '../store/teamStore';
 
 import Modal from '../components/ui/Modal';
 import PrimaryButton from '../components/ui/PrimaryButton';
@@ -68,8 +68,9 @@ function KanbanCard({ card, onDragStart, onClick }: KanbanCardProps) {
 
 export default function Pipeline() {
   const qc = useQueryClient();
-  const { user } = useAuthStore();
-  const isAdmin = user?.role === 'admin';
+  const { activeTeam } = useTeamStore();
+  // Filtro por vendedor é um recurso de gestão: ADMIN ou MODERATOR da equipe ativa
+  const isAdmin = activeTeam?.role === 'admin' || activeTeam?.role === 'moderator';
 
   // Detecta mobile pra mudar layout
   const [isMobile, setIsMobile] = useState(false);
