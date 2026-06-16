@@ -32,7 +32,7 @@ export class TaskController {
       const year  = parseInt(req.query.year  as string);
       const month = parseInt(req.query.month as string);
       if (isNaN(year) || isNaN(month) || year < 2000 || year > 2100 || month < 0 || month > 11) {
-        return next({ statusCode: 400, message: 'Parâmetros year/month inválidos', isOperational: true });
+        return next({ statusCode: 400, message: 'Parâmetros year/month inválidos. month deve ser 0-11 (0=Janeiro, 11=Dezembro)', isOperational: true });
       }
       res.json(apiResponse(await taskService.getByMonth(year, month, req.teamId!)));
     } catch (e) { next(e); }
