@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTeamStore } from '../store/teamStore';
 import { useAuthStore } from '../store/authStore';
 import { workspaceService } from '../services/workspace.service';
@@ -20,6 +20,7 @@ const ROLE_LABEL: Record<string, string> = {
 
 export default function WorkspaceSelector() {
   const navigate = useNavigate();
+  const qc = useQueryClient();
   const { setActiveTeam } = useTeamStore();
   const user = useAuthStore((s) => s.user);
 
@@ -56,6 +57,10 @@ export default function WorkspaceSelector() {
   });
 
   const handleSelectTeam = (m: TeamMembership) => {
+    // Limpa todo o cache do React Query antes de trocar de equipe.
+    // Isso garante que dados de uma equipe não apareçam brevemente em outra.
+    qc.clear();
+
     setActiveTeam({
       id: m.team.id,
       name: m.team.name,

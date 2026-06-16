@@ -69,6 +69,7 @@ function KanbanCard({ card, onDragStart, onClick }: KanbanCardProps) {
 export default function Pipeline() {
   const qc = useQueryClient();
   const { activeTeam } = useTeamStore();
+  const activeTeamId = activeTeam?.id;
   // Filtro por vendedor é um recurso de gestão: ADMIN ou MODERATOR da equipe ativa
   const isAdmin = activeTeam?.role === 'admin' || activeTeam?.role === 'moderator';
 
@@ -85,17 +86,19 @@ export default function Pipeline() {
   const [sellerFilter, setSellerFilter] = useState<'all' | number>('all');
 
   const { data: cardsResult } = useQuery({
-    queryKey: ['cards'],
+    queryKey: ['cards', activeTeamId],
     queryFn: () => cardService.list(1, 200),
+    enabled: !!activeTeamId,
   });
   const { data: contactsResult } = useQuery({
-    queryKey: ['contacts-list'],
+    queryKey: ['contacts-list', activeTeamId],
     queryFn: () => contactService.list('', 1, 200),
+    enabled: !!activeTeamId,
   });
   const { data: team } = useQuery({
-    queryKey: ['team'],
+    queryKey: ['team-members', activeTeamId],
     queryFn: () => teamService.list(),
-    enabled: isAdmin,
+    enabled: isAdmin && !!activeTeamId,
   });
 
   const allCards = ((cardsResult as any)?.data || []) as Card[];
@@ -126,10 +129,10 @@ export default function Pipeline() {
     mutationFn: (data: any) => cardService.create(data),
     onSuccess: () => {
       // Invalida múltiplas queries pra refletir em todas as telas — fix do delay
-      qc.invalidateQueries({ queryKey: ['cards'] });
-      qc.invalidateQueries({ queryKey: ['card-stats'] });
-      qc.invalidateQueries({ queryKey: ['dashboard-metrics'] });
-      qc.invalidateQueries({ queryKey: ['contacts-list'] });
+      qc.invalidateQueries({ queryKey: ['cards', activeTeamId] });
+      qc.invalidateQueries({ queryKey: ['card-stats', activeTeamId] });
+      qc.invalidateQueries({ queryKey: ['dashboard-metrics', activeTeamId] });
+      qc.invalidateQueries({ queryKey: ['contacts-list', activeTeamId] });
       setShowNewModal(false);
       setForm({ title: '', value: '', contactId: '', stage: 'prospecting' });
       toast.success('Card criado');
@@ -140,9 +143,9 @@ export default function Pipeline() {
   const updateMut = useMutation({
     mutationFn: ({ id, data }: { id: number; data: any }) => cardService.update(id, data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['cards'] });
-      qc.invalidateQueries({ queryKey: ['card-stats'] });
-      qc.invalidateQueries({ queryKey: ['dashboard-metrics'] });
+      qc.invalidateQueries({ queryKey: ['cards', activeTeamId] });
+      qc.invalidateQueries({ queryKey: ['card-stats', activeTeamId] });
+      qc.invalidateQueries({ queryKey: ['dashboard-metrics', activeTeamId] });
     },
   });
 

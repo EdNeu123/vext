@@ -1,4 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useTeamStore } from '../store/teamStore';
 import { contactService } from '../services';
 import { formatCurrencyShort } from '../utils/format';
 import { initialsOf, colorForName } from '../utils/avatar';
@@ -8,14 +9,18 @@ import type { Contact } from '../models';
 
 export default function VextRadar() {
   const qc = useQueryClient();
+  const { activeTeam } = useTeamStore();
+  const activeTeamId = activeTeam?.id;
 
   const { data: churnData, isFetching: loadingChurn } = useQuery({
-    queryKey: ['radar-churn'],
+    queryKey: ['radar-churn', activeTeamId],
     queryFn: () => contactService.getHighChurnRisk(),
+    enabled: !!activeTeamId,
   });
   const { data: repurchaseData, isFetching: loadingRep } = useQuery({
-    queryKey: ['radar-repurchase'],
+    queryKey: ['radar-repurchase', activeTeamId],
     queryFn: () => contactService.getRepurchaseOpportunities(),
+    enabled: !!activeTeamId,
   });
 
   const churn = (churnData ?? []) as Contact[];
@@ -23,8 +28,8 @@ export default function VextRadar() {
   const isRefreshing = loadingChurn || loadingRep;
 
   const refresh = () => {
-    qc.invalidateQueries({ queryKey: ['radar-churn'] });
-    qc.invalidateQueries({ queryKey: ['radar-repurchase'] });
+    qc.invalidateQueries({ queryKey: ['radar-churn', activeTeamId] });
+    qc.invalidateQueries({ queryKey: ['radar-repurchase', activeTeamId] });
   };
 
   return (
