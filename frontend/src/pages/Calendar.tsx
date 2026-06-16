@@ -56,7 +56,7 @@ export default function Calendar() {
 
   // Carrega tasks do mês visível (pra pintar bolinhas no calendário do mês)
   const monthYear = visibleMonth.getFullYear();
-  const monthIdx = visibleMonth.getMonth() + 1; // backend usa 1-12
+  const monthIdx  = visibleMonth.getMonth(); // 0-indexed, 0-11
   const { data: monthTasks } = useQuery({
     queryKey: ['tasks-by-month', monthYear, monthIdx],
     queryFn: () => taskService.getByMonth(monthYear, monthIdx),
