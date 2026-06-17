@@ -8,15 +8,15 @@ type Period = '7d' | '30d' | '12m';
 
 export class DashboardController {
   async getMetrics(req: AuthRequest, res: Response, next: NextFunction) {
-    try { res.json(apiResponse(await dashboardService.getMetrics(req.user!.id, req.user!.role))); } catch (e) { next(e); }
+    try { res.json(apiResponse(await dashboardService.getMetrics(req.teamId!))); } catch (e) { next(e); }
   }
 
   async getGoalProgress(req: AuthRequest, res: Response, next: NextFunction) {
-    try { res.json(apiResponse(await dashboardService.getGoalProgress(req.user!.id))); } catch (e) { next(e); }
+    try { res.json(apiResponse(await dashboardService.getGoalProgress(req.user!.id, req.teamId!))); } catch (e) { next(e); }
   }
 
   async getTodayTasks(req: AuthRequest, res: Response, next: NextFunction) {
-    try { res.json(apiResponse(await dashboardService.getTodayTasks(req.user!.id, req.user!.role))); } catch (e) { next(e); }
+    try { res.json(apiResponse(await dashboardService.getTodayTasks(req.teamId!))); } catch (e) { next(e); }
   }
 
   async getTimeseries(req: AuthRequest, res: Response, next: NextFunction) {
@@ -29,14 +29,14 @@ export class DashboardController {
       if (!['7d', '30d', '12m'].includes(period)) {
         return res.status(400).json(apiResponse(null, 'period inválido'));
       }
-      res.json(apiResponse(await dashboardService.getTimeseries(req.user!.id, req.user!.role, metric, period)));
+      res.json(apiResponse(await dashboardService.getTimeseries(req.teamId!, metric, period)));
     } catch (e) { next(e); }
   }
 
   async getMonthly(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const month = (req.query.month as string) || new Date().toISOString().slice(0, 7);
-      res.json(apiResponse(await dashboardService.getMonthlyMetrics(req.user!.id, req.user!.role, month)));
+      res.json(apiResponse(await dashboardService.getMonthlyMetrics(req.teamId!, month)));
     } catch (e) { next(e); }
   }
 }
