@@ -1,7 +1,7 @@
 import { prisma } from '../config/prisma';
+import { Prisma } from '@prisma/client';
 import crypto from 'crypto';
 import { ApiError } from '../utils/helpers';
-import { auditService } from './audit.service';
 import { teamService } from './team.service';
 
 export class InviteService {
@@ -35,14 +35,22 @@ export class InviteService {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7);
 
-    const invite = await prisma.invite.create({
-      data: {
-        token, email: data.email, name: data.name, role: data.role,
-        permissions: data.permissions || [], invitedBy, teamId, expiresAt,
-      },
+    const invite = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const created = await tx.invite.create({
+        data: {
+          token, email: data.email, name: data.name, role: data.role,
+          permissions: data.permissions || [], invitedBy, teamId, expiresAt,
+        },
+      });
+      await tx.auditLog.create({
+        data: {
+          entityType: 'invite', entityId: created.id, action: 'Convite Criado',
+          userId: invitedBy, userName: inviterName, teamId,
+        },
+      });
+      return created;
     });
 
-    await auditService.log('invite', invite.id, 'Convite Criado', invitedBy, inviterName, undefined, undefined, teamId);
     return { token, id: invite.id, expiresAt };
   }
 
@@ -58,8 +66,15 @@ export class InviteService {
   async revoke(id: number, teamId: number, adminId: number, adminName: string) {
     const invite = await prisma.invite.findFirst({ where: { id, teamId } });
     if (!invite) throw ApiError.notFound('Convite não encontrado');
-    await prisma.invite.update({ where: { id }, data: { status: 'expired' } });
-    await auditService.log('invite', id, 'Convite Revogado', adminId, adminName, undefined, undefined, teamId);
+    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      await tx.invite.update({ where: { id }, data: { status: 'expired' } });
+      await tx.auditLog.create({
+        data: {
+          entityType: 'invite', entityId: id, action: 'Convite Revogado',
+          userId: adminId, userName: adminName, teamId,
+        },
+      });
+    });
   }
 }
 

@@ -1,5 +1,6 @@
 import { hashPassword, comparePassword } from '../utils/hash';
 import { prisma } from '../config/prisma';
+import { Prisma } from '@prisma/client';
 import {
   generateAccessToken,
   generateRefreshToken,
@@ -76,22 +77,31 @@ export class AuthService {
     }
 
     const hashedPassword = await hashPassword(input.password);
-    const user = await prisma.user.create({
-      data: { name: input.name, email: input.email, password: hashedPassword, role },
+
+    // Transaction: quando o registro vem de um convite, a criação do usuário, a
+    // baixa do convite (status=used) e a criação do TeamMember são uma unidade.
+    // Sem isso, uma falha no meio poderia criar o usuário mas deixar o convite
+    // ainda "pending" ou o usuário sem vínculo de equipe.
+    const user = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const created = await tx.user.create({
+        data: { name: input.name, email: input.email, password: hashedPassword, role },
+      });
+
+      if (inviteId && invite) {
+        await tx.invite.update({
+          where: { id: inviteId },
+          data: { status: 'used', usedBy: created.id, usedAt: new Date() },
+        });
+
+        // Adiciona o novo usuário como membro da equipe do convite.
+        // role só pode ser 'moderator' ou 'seller' — garantido pelo createInviteSchema.
+        await tx.teamMember.create({
+          data: { teamId: invite.teamId, userId: created.id, role: invite.role },
+        });
+      }
+
+      return created;
     });
-
-    if (inviteId && invite) {
-      await prisma.invite.update({
-        where: { id: inviteId },
-        data: { status: 'used', usedBy: user.id, usedAt: new Date() },
-      });
-
-      // Adiciona o novo usuário como membro da equipe do convite.
-      // role só pode ser 'moderator' ou 'seller' — garantido pelo createInviteSchema.
-      await prisma.teamMember.create({
-        data: { teamId: invite.teamId, userId: user.id, role: invite.role },
-      });
-    }
 
     const accessToken  = generateAccessToken({
       userId: user.id, email: user.email, name: user.name, role: user.role,

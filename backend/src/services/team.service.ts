@@ -1,4 +1,5 @@
 import { prisma } from '../config/prisma';
+import { Prisma } from '@prisma/client';
 import { ApiError } from '../utils/helpers';
 import { auditService } from './audit.service';
 import crypto from 'crypto';
@@ -77,7 +78,7 @@ export class TeamService {
       if (attempts > 20) throw ApiError.internal('Falha ao gerar código único');
     } while (await prisma.team.findUnique({ where: { orgCode } }));
 
-    const team = await prisma.$transaction(async (tx) => {
+    const team = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const newTeam = await tx.team.create({
         data: { name, slug, orgCode, ownerId },
       });

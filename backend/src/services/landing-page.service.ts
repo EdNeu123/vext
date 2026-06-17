@@ -1,6 +1,6 @@
 import { prisma } from '../config/prisma';
+import { Prisma } from '@prisma/client';
 import { ApiError } from '../utils/helpers';
-import { auditService } from './audit.service';
 
 export class LandingPageService {
   async list(teamId: number) {
@@ -35,9 +35,16 @@ export class LandingPageService {
     const existing = await prisma.landingPage.findUnique({ where: { slug: data.slug } });
     if (existing) throw ApiError.conflict('Este slug já está em uso');
 
-    const page = await prisma.landingPage.create({ data: { ...data, ownerId, teamId } });
-    await auditService.log('landing_page', page.id, 'Landing Page Criada', ownerId, userName, undefined, undefined, teamId);
-    return page;
+    return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const page = await tx.landingPage.create({ data: { ...data, ownerId, teamId } });
+      await tx.auditLog.create({
+        data: {
+          entityType: 'landing_page', entityId: page.id, action: 'Landing Page Criada',
+          userId: ownerId, userName, teamId,
+        },
+      });
+      return page;
+    });
   }
 
   async update(id: number, data: any, userId: number, userName: string, teamId: number) {
@@ -48,15 +55,29 @@ export class LandingPageService {
       if (existing && existing.id !== id) throw ApiError.conflict('Slug em uso');
     }
 
-    const page = await prisma.landingPage.update({ where: { id }, data });
-    await auditService.log('landing_page', id, 'Landing Page Atualizada', userId, userName, undefined, undefined, teamId);
-    return page;
+    return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const page = await tx.landingPage.update({ where: { id }, data });
+      await tx.auditLog.create({
+        data: {
+          entityType: 'landing_page', entityId: id, action: 'Landing Page Atualizada',
+          userId, userName, teamId,
+        },
+      });
+      return page;
+    });
   }
 
   async delete(id: number, userId: number, userName: string, teamId: number) {
     await this.getById(id, teamId);
-    await auditService.log('landing_page', id, 'Landing Page Deletada', userId, userName, undefined, undefined, teamId);
-    await prisma.landingPage.delete({ where: { id } });
+    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      await tx.auditLog.create({
+        data: {
+          entityType: 'landing_page', entityId: id, action: 'Landing Page Deletada',
+          userId, userName, teamId,
+        },
+      });
+      await tx.landingPage.delete({ where: { id } });
+    });
   }
 
   /** Conversão registrada a partir da página pública — sem escopo de equipe */

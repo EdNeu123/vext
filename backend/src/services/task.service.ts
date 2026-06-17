@@ -1,6 +1,6 @@
 import { prisma } from '../config/prisma';
+import { Prisma } from '@prisma/client';
 import { ApiError } from '../utils/helpers';
-import { auditService } from './audit.service';
 import type { CreateTaskInput, UpdateTaskInput } from '../models/schemas';
 
 export class TaskService {
@@ -69,11 +69,18 @@ export class TaskService {
   }
 
   async create(data: CreateTaskInput, userId: number, userName: string, teamId: number) {
-    const task = await prisma.task.create({
-      data: { ...data, dueDate: new Date(data.dueDate), ownerId: userId, teamId },
+    return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const task = await tx.task.create({
+        data: { ...data, dueDate: new Date(data.dueDate), ownerId: userId, teamId },
+      });
+      await tx.auditLog.create({
+        data: {
+          entityType: 'task', entityId: task.id, action: 'Tarefa Criada',
+          userId, userName, teamId,
+        },
+      });
+      return task;
     });
-    await auditService.log('task', task.id, 'Tarefa Criada', userId, userName, undefined, undefined, teamId);
-    return task;
   }
 
   async update(id: number, data: UpdateTaskInput, userId: number, userName: string, teamId: number) {
@@ -92,15 +99,29 @@ export class TaskService {
     if (updateData.dueDate) updatePayload.dueDate = new Date(updateData.dueDate);
     if (updateData.status === 'completed') updatePayload.completedAt = new Date();
 
-    const task = await prisma.task.update({ where: { id }, data: updatePayload });
-    await auditService.log('task', id, 'Tarefa Atualizada', userId, userName, undefined, reason, teamId);
-    return task;
+    return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const task = await tx.task.update({ where: { id }, data: updatePayload });
+      await tx.auditLog.create({
+        data: {
+          entityType: 'task', entityId: id, action: 'Tarefa Atualizada',
+          userId, userName, reason: reason ?? null, teamId,
+        },
+      });
+      return task;
+    });
   }
 
   async delete(id: number, userId: number, userName: string, teamId: number) {
     await this.getById(id, teamId);
-    await auditService.log('task', id, 'Tarefa Deletada', userId, userName, undefined, undefined, teamId);
-    await prisma.task.delete({ where: { id } });
+    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      await tx.auditLog.create({
+        data: {
+          entityType: 'task', entityId: id, action: 'Tarefa Deletada',
+          userId, userName, teamId,
+        },
+      });
+      await tx.task.delete({ where: { id } });
+    });
   }
 
   async getPendingCount(teamId: number) {

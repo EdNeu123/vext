@@ -1,6 +1,6 @@
 import { prisma } from '../config/prisma';
+import { Prisma } from '@prisma/client';
 import { ApiError, calculateDealProbability } from '../utils/helpers';
-import { auditService } from './audit.service';
 import { cardEventService } from './card-event.service';
 import type { CreateCardInput, UpdateCardInput } from '../models/schemas';
 
@@ -64,23 +64,38 @@ export class CardService {
     const { tagIds, nextFollowUpDate, ...dealData } = data;
     const probability = calculateDealProbability({ stage: dealData.stage || 'prospecting' });
 
-    const card = await prisma.card.create({
-      data: {
-        ...dealData,
-        ownerId: userId,
-        teamId,
-        probability,
-        nextFollowUpDate: nextFollowUpDate ? new Date(nextFollowUpDate) : null,
-      },
+    // Transaction: o card e suas tags precisam nascer juntos. Se a criação das
+    // tags falhar, o card não pode ficar órfão/sem vínculo — tudo é revertido.
+    const card = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const created = await tx.card.create({
+        data: {
+          ...dealData,
+          ownerId: userId,
+          teamId,
+          probability,
+          nextFollowUpDate: nextFollowUpDate ? new Date(nextFollowUpDate) : null,
+        },
+      });
+
+      if (tagIds?.length) {
+        await tx.cardTag.createMany({
+          data: tagIds.map((tagId) => ({ cardId: created.id, tagId })),
+        });
+      }
+
+      // AuditLog dentro da transação: ou o card+tags+auditoria existem, ou nada existe.
+      await tx.auditLog.create({
+        data: {
+          entityType: 'card', entityId: created.id, action: 'Card Criado',
+          userId, userName, teamId,
+        },
+      });
+
+      return created;
     });
 
-    if (tagIds?.length) {
-      await prisma.cardTag.createMany({
-        data: tagIds.map((tagId) => ({ cardId: card.id, tagId })),
-      });
-    }
-
-    await auditService.log('card', card.id, 'Card Criado', userId, userName, undefined, undefined, teamId);
+    // CardEvent fica FORA da transação de propósito: é log de timeline best-effort
+    // (cardEventService.log já engole erros) e não deve reverter a criação do card.
     await cardEventService.log({
       cardId: card.id,
       type: 'created',
@@ -109,28 +124,38 @@ export class CardService {
       closedAt = new Date();
     }
 
-    await prisma.card.update({
-      where: { id },
-      data: {
-        ...updateData,
-        probability,
-        closedAt,
-        nextFollowUpDate: nextFollowUpDate !== undefined
-          ? (nextFollowUpDate ? new Date(nextFollowUpDate) : null)
-          : undefined,
-      },
-    });
+    // Transaction: a atualização do card, o re-sync de tags e o registro de
+    // auditoria formam uma unidade. Sem isso, um erro no meio poderia deixar o
+    // card atualizado mas com as tags antigas apagadas (estado inconsistente).
+    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      await tx.card.update({
+        where: { id },
+        data: {
+          ...updateData,
+          probability,
+          closedAt,
+          nextFollowUpDate: nextFollowUpDate !== undefined
+            ? (nextFollowUpDate ? new Date(nextFollowUpDate) : null)
+            : undefined,
+        },
+      });
 
-    if (tagIds !== undefined) {
-      await prisma.cardTag.deleteMany({ where: { cardId: id } });
-      if (tagIds.length > 0) {
-        await prisma.cardTag.createMany({
-          data: tagIds.map((tagId) => ({ cardId: id, tagId })),
-        });
+      if (tagIds !== undefined) {
+        await tx.cardTag.deleteMany({ where: { cardId: id } });
+        if (tagIds.length > 0) {
+          await tx.cardTag.createMany({
+            data: tagIds.map((tagId) => ({ cardId: id, tagId })),
+          });
+        }
       }
-    }
 
-    await auditService.log('card', id, 'Card Atualizado', userId, userName, undefined, reason, teamId);
+      await tx.auditLog.create({
+        data: {
+          entityType: 'card', entityId: id, action: 'Card Atualizado',
+          userId, userName, reason: reason ?? null, teamId,
+        },
+      });
+    });
 
     // Eventos estruturados pra timeline — granulares por tipo de mudança
     if (updateData.stage && updateData.stage !== existing.stage) {
@@ -196,10 +221,18 @@ export class CardService {
 
   async delete(id: number, userId: number, userName: string, teamId: number) {
     await this.getById(id, teamId);
-    await auditService.log('card', id, 'Card Deletado', userId, userName, undefined, undefined, teamId);
-    await prisma.cardTag.deleteMany({ where: { cardId: id } });
-    await prisma.card.delete({ where: { id } });
-    // CardEvent é deletado em cascade via FK
+    // Transaction: auditoria + remoção de vínculos + remoção do card são atômicos.
+    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      await tx.auditLog.create({
+        data: {
+          entityType: 'card', entityId: id, action: 'Card Deletado',
+          userId, userName, teamId,
+        },
+      });
+      await tx.cardTag.deleteMany({ where: { cardId: id } });
+      await tx.card.delete({ where: { id } });
+      // CardEvent é deletado em cascade via FK
+    });
   }
 
   async getStats(teamId: number) {
