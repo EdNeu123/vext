@@ -5,7 +5,7 @@ import { apiResponse } from '../utils/helpers';
 
 export class NotificationController {
   async list(req: AuthRequest, res: Response, next: NextFunction) {
-    try { res.json(apiResponse(await notificationService.list(req.user!.id))); } catch (e) { next(e); }
+    try { res.json(apiResponse(await notificationService.list(req.user!.id, req.teamId!))); } catch (e) { next(e); }
   }
 
   async markAsRead(req: AuthRequest, res: Response, next: NextFunction) {
@@ -17,13 +17,13 @@ export class NotificationController {
 
   async markAllAsRead(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      await notificationService.markAllAsRead(req.user!.id);
+      await notificationService.markAllAsRead(req.user!.id, req.teamId!);
       res.json(apiResponse(null, 'Todas marcadas como lidas'));
     } catch (e) { next(e); }
   }
 
   async getUnreadCount(req: AuthRequest, res: Response, next: NextFunction) {
-    try { res.json(apiResponse({ count: await notificationService.getUnreadCount(req.user!.id) })); } catch (e) { next(e); }
+    try { res.json(apiResponse({ count: await notificationService.getUnreadCount(req.user!.id, req.teamId!) })); } catch (e) { next(e); }
   }
 }
 
