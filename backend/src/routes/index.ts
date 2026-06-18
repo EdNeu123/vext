@@ -21,7 +21,7 @@ router.use('/cards',          cardRoutes);
 router.use('/tags',           tagRoutes);
 router.use('/products',       productRoutes);
 router.use('/tasks',          taskRoutes);
-router.use('/teams',          teamRoutes);
+router.use('/team',           teamRoutes);
 router.use('/invites',        inviteRoutes);
 router.use('/notifications',  notificationRoutes);
 router.use('/dashboard',      dashboardRoutes);

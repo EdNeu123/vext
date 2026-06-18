@@ -6,13 +6,13 @@ import { apiResponse } from '../utils/helpers';
 export class AuditController {
   async getByEntity(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      res.json(apiResponse(await auditService.getByEntity(req.params.entityType as any, Number(req.params.entityId), req.teamId!)));
+      res.json(apiResponse(await auditService.getByEntity(req.params.entityType as any, Number(req.params.entityId))));
     } catch (e) { next(e); }
   }
 
   async getRecent(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      res.json(apiResponse(await auditService.getRecent(req.teamId!, Number(req.query.limit) || 100)));
+      res.json(apiResponse(await auditService.getRecent(Number(req.query.limit) || 100)));
     } catch (e) { next(e); }
   }
 }

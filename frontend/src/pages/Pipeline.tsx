@@ -6,7 +6,7 @@ import { Plus, LayoutGrid, List, ChevronLeft } from 'lucide-react';
 import { cardService, contactService, teamService } from '../services';
 import type { Card, CardStage } from '../models';
 import { formatCurrency, formatCurrencyShort } from '../utils/format';
-import { useTeamStore } from '../store/teamStore';
+import { useAuthStore } from '../store/authStore';
 
 import Modal from '../components/ui/Modal';
 import PrimaryButton from '../components/ui/PrimaryButton';
@@ -68,10 +68,8 @@ function KanbanCard({ card, onDragStart, onClick }: KanbanCardProps) {
 
 export default function Pipeline() {
   const qc = useQueryClient();
-  const { activeTeam } = useTeamStore();
-  const activeTeamId = activeTeam?.id;
-  // Filtro por vendedor é um recurso de gestão: ADMIN ou MODERATOR da equipe ativa
-  const isAdmin = activeTeam?.role === 'admin' || activeTeam?.role === 'moderator';
+  const { user } = useAuthStore();
+  const isAdmin = user?.role === 'admin';
 
   // Detecta mobile pra mudar layout
   const [isMobile, setIsMobile] = useState(false);
@@ -86,19 +84,17 @@ export default function Pipeline() {
   const [sellerFilter, setSellerFilter] = useState<'all' | number>('all');
 
   const { data: cardsResult } = useQuery({
-    queryKey: ['cards', activeTeamId],
+    queryKey: ['cards'],
     queryFn: () => cardService.list(1, 200),
-    enabled: !!activeTeamId,
   });
   const { data: contactsResult } = useQuery({
-    queryKey: ['contacts-list', activeTeamId],
+    queryKey: ['contacts-list'],
     queryFn: () => contactService.list('', 1, 200),
-    enabled: !!activeTeamId,
   });
   const { data: team } = useQuery({
-    queryKey: ['team-members', activeTeamId],
+    queryKey: ['team'],
     queryFn: () => teamService.list(),
-    enabled: isAdmin && !!activeTeamId,
+    enabled: isAdmin,
   });
 
   const allCards = ((cardsResult as any)?.data || []) as Card[];
@@ -129,10 +125,10 @@ export default function Pipeline() {
     mutationFn: (data: any) => cardService.create(data),
     onSuccess: () => {
       // Invalida múltiplas queries pra refletir em todas as telas — fix do delay
-      qc.invalidateQueries({ queryKey: ['cards', activeTeamId] });
-      qc.invalidateQueries({ queryKey: ['card-stats', activeTeamId] });
-      qc.invalidateQueries({ queryKey: ['dashboard-metrics', activeTeamId] });
-      qc.invalidateQueries({ queryKey: ['contacts-list', activeTeamId] });
+      qc.invalidateQueries({ queryKey: ['cards'] });
+      qc.invalidateQueries({ queryKey: ['card-stats'] });
+      qc.invalidateQueries({ queryKey: ['dashboard-metrics'] });
+      qc.invalidateQueries({ queryKey: ['contacts-list'] });
       setShowNewModal(false);
       setForm({ title: '', value: '', contactId: '', stage: 'prospecting' });
       toast.success('Card criado');
@@ -143,9 +139,9 @@ export default function Pipeline() {
   const updateMut = useMutation({
     mutationFn: ({ id, data }: { id: number; data: any }) => cardService.update(id, data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['cards', activeTeamId] });
-      qc.invalidateQueries({ queryKey: ['card-stats', activeTeamId] });
-      qc.invalidateQueries({ queryKey: ['dashboard-metrics', activeTeamId] });
+      qc.invalidateQueries({ queryKey: ['cards'] });
+      qc.invalidateQueries({ queryKey: ['card-stats'] });
+      qc.invalidateQueries({ queryKey: ['dashboard-metrics'] });
     },
   });
 

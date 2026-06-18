@@ -37,21 +37,11 @@ const processQueue = (error: any, token: string | null = null) => {
   failedQueue = [];
 };
 
-// REQUEST: injeta Bearer token da memória + X-Team-ID da equipe ativa
+// REQUEST: injeta Bearer token da memória
 api.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     const token = getAccessToken();
     if (token && config.headers) config.headers.Authorization = `Bearer ${token}`;
-
-    // Injeta X-Team-ID quando há equipe ativa selecionada (ver teamStore)
-    const activeTeamRaw = sessionStorage.getItem('vext_active_team');
-    if (activeTeamRaw && config.headers) {
-      try {
-        const activeTeam = JSON.parse(activeTeamRaw);
-        if (activeTeam?.id) config.headers['X-Team-ID'] = String(activeTeam.id);
-      } catch {}
-    }
-
     return config;
   },
   (error) => Promise.reject(error)
@@ -107,7 +97,6 @@ api.interceptors.response.use(
         processQueue(refreshError, null);
         setAccessToken(null);
         sessionStorage.removeItem('vext_user');
-        sessionStorage.removeItem('vext_active_team');
         if (!window.location.pathname.includes('/login')) {
           window.location.href = '/login';
         }

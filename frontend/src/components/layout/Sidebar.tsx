@@ -1,6 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
-import { useTeamStore } from '../../store/teamStore';
 import { useNotificationStore } from '../../store/notificationStore';
 import Avatar from '../ui/Avatar';
 import { initialsOf, colorForName } from '../../utils/avatar';
@@ -57,16 +56,6 @@ const IconProducts = () => (
   </Icon>
 );
 const IconTeam = IconContacts;
-const IconTeamSwitch = () => (
-  <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
-       stroke="currentColor" strokeWidth="2"
-       strokeLinecap="round" strokeLinejoin="round" className="text-accent">
-    <path d="M17 1l4 4-4 4" />
-    <path d="M3 11V9a4 4 0 0 1 4-4h14" />
-    <path d="M7 23l-4-4 4-4" />
-    <path d="M21 13v2a4 4 0 0 1-4 4H3" />
-  </svg>
-);
 const IconTags = () => (
   <Icon>
     <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
@@ -121,7 +110,6 @@ const NAV_ITEMS: NavEntry[] = [
 export default function Sidebar() {
   const location = useLocation();
   const { user, logout } = useAuthStore();
-  const { activeTeam } = useTeamStore();
   const { unreadCount } = useNotificationStore();
 
   // Badges — por enquanto só pipeline tem fonte real (notifications).
@@ -154,24 +142,6 @@ export default function Sidebar() {
           </div>
         </Link>
       </div>
-
-      {/* Equipe ativa — link para o seletor de workspace */}
-      {activeTeam && (
-        <Link
-          to="/workspace"
-          className="flex items-center gap-2 px-3 py-2 mx-2 mt-2 rounded-token hover:bg-surface-2 transition-colors"
-        >
-          <div className="w-6 h-6 rounded bg-accent-bg flex items-center justify-center shrink-0">
-            <IconTeamSwitch />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-[10px] text-text-3 leading-none">Equipe</div>
-            <div className="text-[13px] font-semibold text-text-1 truncate leading-tight">
-              {activeTeam.name}
-            </div>
-          </div>
-        </Link>
-      )}
 
       {/* Nav */}
       <nav className="flex-1 px-2 py-2.5 overflow-y-auto">

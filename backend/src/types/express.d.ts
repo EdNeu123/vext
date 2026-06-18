@@ -14,7 +14,4 @@ export interface AuthRequest extends Request {
     name: string;
     role: string;
   };
-  // Injetado pelo middleware requireTeamAccess (ver team.middleware.ts)
-  teamId?: number;
-  teamRole?: 'admin' | 'moderator' | 'seller';
 }

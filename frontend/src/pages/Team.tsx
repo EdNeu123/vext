@@ -1,17 +1,15 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { inviteService, workspaceService } from '../services';
-import { useTeamStore } from '../store/teamStore';
-import { useAuthStore } from '../store/authStore';
-import { formatCurrencyShort } from '../utils/format';
+import { teamService, inviteService } from '../services';
+import { formatCurrency, formatCurrencyShort } from '../utils/format';
 import { initialsOf, colorForName } from '../utils/avatar';
 import { toast } from 'sonner';
 import Modal from '../components/ui/Modal';
 import PrimaryButton from '../components/ui/PrimaryButton';
 import { FormField, Input, Select } from '../components/ui/Form';
 import Avatar from '../components/ui/Avatar';
-import { Plus, Trophy, Crown, Shield, MoreVertical } from 'lucide-react';
-import type { TeamMember } from '../models';
+import { Plus, Trophy, Star } from 'lucide-react';
+import type { User } from '../models';
 
 interface RankingEntry {
   id: number;
@@ -22,46 +20,21 @@ interface RankingEntry {
   salesGoal?: number | null;
 }
 
-const ROLE_CONFIG: Record<string, { label: string; className: string }> = {
-  admin:     { label: 'Administrador', className: 'bg-accent-bg text-accent' },
-  moderator: { label: 'Moderador',     className: 'bg-warning-bg text-warning' },
-  seller:    { label: 'Vendedor',      className: 'bg-surface-2 text-text-2' },
-};
-
 export default function Team() {
   const qc = useQueryClient();
-  const user = useAuthStore((s) => s.user);
-  const { activeTeam } = useTeamStore();
   const [showInvite, setShowInvite] = useState(false);
-  const [showTransfer, setShowTransfer] = useState(false);
-  const [transferTarget, setTransferTarget] = useState<TeamMember | null>(null);
-  const [openMenuFor, setOpenMenuFor] = useState<number | null>(null);
   const [inviteForm, setInviteForm] = useState({ name: '', email: '', role: 'seller' });
 
-  const isAdmin     = activeTeam?.role === 'admin';
-  const isModerator = activeTeam?.role === 'moderator';
-  const canManage   = isAdmin || isModerator;
-
-  const { data: teamDetails } = useQuery({
-    queryKey: ['team-details', activeTeam?.id],
-    queryFn: () => workspaceService.getTeam(activeTeam!.id),
-    enabled: !!activeTeam,
+  const { data: teamData } = useQuery({
+    queryKey: ['team'],
+    queryFn: () => teamService.list(),
   });
-
-  const { data: membersData = [] } = useQuery<TeamMember[]>({
-    queryKey: ['team-members', activeTeam?.id],
-    queryFn: () => workspaceService.listMembers(activeTeam!.id) as Promise<TeamMember[]>,
-    enabled: !!activeTeam,
-  });
-
   const { data: rankingData } = useQuery({
-    queryKey: ['team-ranking', activeTeam?.id],
-    queryFn: () => workspaceService.getSellerRanking(activeTeam!.id),
-    enabled: !!activeTeam,
+    queryKey: ['team-ranking'],
+    queryFn: () => teamService.getSellerRanking(),
   });
 
-  const memberLimit = (teamDetails as any)?.memberLimit ?? 6;
-
+  const team = (teamData ?? []) as User[];
   const ranking = (() => {
     if (Array.isArray(rankingData)) return rankingData as RankingEntry[];
     if (rankingData && Array.isArray((rankingData as any).ranking)) {
@@ -73,6 +46,7 @@ export default function Team() {
   const inviteMut = useMutation({
     mutationFn: (data: any) => inviteService.create(data),
     onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['team'] });
       setShowInvite(false);
       setInviteForm({ name: '', email: '', role: 'seller' });
       toast.success('Convite enviado!');
@@ -80,50 +54,11 @@ export default function Team() {
     onError: (e: any) => toast.error(e.response?.data?.message || 'Erro ao enviar convite'),
   });
 
-  const updateRoleMut = useMutation({
-    mutationFn: ({ userId, role }: { userId: number; role: 'moderator' | 'seller' }) =>
-      workspaceService.updateMember(activeTeam!.id, userId, role),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['team-members', activeTeam?.id] });
-      toast.success('Papel atualizado!');
-      setOpenMenuFor(null);
-    },
-    onError: (e: any) => toast.error(e.response?.data?.message || 'Erro ao atualizar papel'),
-  });
-
-  const removeMemberMut = useMutation({
-    mutationFn: (userId: number) => workspaceService.removeMember(activeTeam!.id, userId),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['team-members', activeTeam?.id] });
-      qc.invalidateQueries({ queryKey: ['team-details', activeTeam?.id] });
-      toast.success('Membro removido');
-      setOpenMenuFor(null);
-    },
-    onError: (e: any) => toast.error(e.response?.data?.message || 'Erro ao remover membro'),
-  });
-
-  const transferMut = useMutation({
-    mutationFn: (newOwnerUserId: number) =>
-      workspaceService.transferOwnership(activeTeam!.id, newOwnerUserId),
-    onSuccess: () => {
-      toast.success('Posse da equipe transferida! Suas permissões serão atualizadas na próxima ação.');
-      setShowTransfer(false);
-      setTransferTarget(null);
-      qc.invalidateQueries({ queryKey: ['team-members', activeTeam?.id] });
-      qc.invalidateQueries({ queryKey: ['team-details', activeTeam?.id] });
-    },
-    onError: (e: any) => toast.error(e.response?.data?.message || 'Erro ao transferir posse'),
-  });
-
   const goalTotal = ranking.reduce((acc, r) => acc + (r.salesGoal ?? 0), 0) || 60000;
 
   const handleInvite = (e: React.FormEvent) => {
     e.preventDefault();
     if (!inviteForm.name || !inviteForm.email) return;
-    if (membersData.length >= memberLimit) {
-      toast.error(`Limite de ${memberLimit} membros do plano atingido. Faça upgrade para convidar mais pessoas.`);
-      return;
-    }
     inviteMut.mutate(inviteForm);
   };
 
@@ -133,108 +68,55 @@ export default function Team() {
       <div className="flex items-start justify-between mb-5 flex-wrap gap-3">
         <div>
           <h1 className="text-xl font-bold text-text-1 tracking-tight">Equipe</h1>
-          <p className="text-[13px] text-text-3 mt-1">
-            {membersData.length} / {memberLimit} membros
-            {membersData.length >= memberLimit && (
-              <span className="text-warning ml-1.5">· limite do plano atingido</span>
-            )}
-          </p>
+          <p className="text-[13px] text-text-3 mt-1">{team.length} membros ativos</p>
         </div>
-        {canManage && (
-          <PrimaryButton onClick={() => setShowInvite(true)}>
-            <Plus size={14} strokeWidth={2.5} />
-            Convidar
-          </PrimaryButton>
-        )}
+        <PrimaryButton onClick={() => setShowInvite(true)}>
+          <Plus size={14} strokeWidth={2.5} />
+          Convidar
+        </PrimaryButton>
       </div>
 
       {/* Member cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-5">
-        {membersData.map((m) => {
-          const memberRank = ranking.find((r) => r.id === m.user.id);
+        {team.map((m) => {
+          const memberRank = ranking.find((r) => r.id === m.id);
           const memberValue = memberRank?.totalValue ?? memberRank?.total ?? memberRank?.value ?? 0;
-          const memberGoal = m.user.salesGoal ?? 0;
+          const memberGoal = m.salesGoal ?? 0;
           const pct = memberGoal > 0 ? Math.min((memberValue / memberGoal) * 100, 100) : 0;
-          const roleCfg = ROLE_CONFIG[m.role] ?? ROLE_CONFIG.seller;
-          const isSelf = m.userId === user?.id;
 
           return (
             <div
-              key={m.userId}
-              className="bg-surface border border-border rounded-xl p-4 relative"
+              key={m.id}
+              className="bg-surface border border-border rounded-xl p-4"
             >
               <div className="flex items-center gap-3 mb-3">
                 <Avatar
-                  initials={initialsOf(m.user.name)}
+                  initials={initialsOf(m.name)}
                   size={40}
-                  color={colorForName(m.user.name)}
+                  color={colorForName(m.name)}
                 />
                 <div className="flex-1 min-w-0">
                   <div className="text-[14px] font-semibold text-text-1 flex items-center gap-1.5">
-                    <span className="truncate">{m.user.name}</span>
+                    <span className="truncate">{m.name}</span>
                     {m.role === 'admin' && (
-                      <Crown size={11} className="text-warning flex-shrink-0" fill="currentColor" />
-                    )}
-                    {m.role === 'moderator' && (
-                      <Shield size={11} className="text-warning flex-shrink-0" />
+                      <Star size={11} className="text-warning flex-shrink-0" fill="currentColor" />
                     )}
                   </div>
-                  <div className="text-[11px] text-text-3 truncate">{m.user.email}</div>
+                  <div className="text-[11px] text-text-3 truncate">{m.email}</div>
                 </div>
-
-                {/* Menu de gerenciamento — oculto para o próprio card e para quem não pode gerenciar */}
-                {canManage && !isSelf && m.role !== 'admin' && (
-                  <div className="relative shrink-0">
-                    <button
-                      onClick={() => setOpenMenuFor(openMenuFor === m.userId ? null : m.userId)}
-                      className="p-1 rounded hover:bg-surface-2 text-text-3"
-                    >
-                      <MoreVertical size={14} />
-                    </button>
-
-                    {openMenuFor === m.userId && (
-                      <div className="absolute right-0 top-7 z-10 w-48 bg-surface border border-border rounded-lg shadow-lg py-1 text-[12px]">
-                        {isAdmin && (
-                          <button
-                            className="w-full text-left px-3 py-2 hover:bg-surface-2 text-text-1"
-                            onClick={() =>
-                              updateRoleMut.mutate({
-                                userId: m.userId,
-                                role: m.role === 'moderator' ? 'seller' : 'moderator',
-                              })
-                            }
-                          >
-                            {m.role === 'moderator' ? 'Rebaixar para Vendedor' : 'Promover a Moderador'}
-                          </button>
-                        )}
-                        <button
-                          className="w-full text-left px-3 py-2 hover:bg-surface-2 text-danger"
-                          onClick={() => {
-                            if (confirm(`Remover ${m.user.name} da equipe?`)) removeMemberMut.mutate(m.userId);
-                          }}
-                        >
-                          Remover da equipe
-                        </button>
-                        {isAdmin && (
-                          <button
-                            className="w-full text-left px-3 py-2 hover:bg-surface-2 text-text-1"
-                            onClick={() => {
-                              setTransferTarget(m);
-                              setShowTransfer(true);
-                              setOpenMenuFor(null);
-                            }}
-                          >
-                            Transferir administração
-                          </button>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
               </div>
               <div className="flex justify-between items-center">
-                <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${roleCfg.className}`}>
-                  {roleCfg.label}
+                <span
+                  className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${
+                    m.role === 'admin'
+                      ? 'bg-accent-bg text-accent'
+                      : 'bg-surface-2 text-text-2'
+                  }`}
+                >
+                  {m.role === 'admin' ? 'Administrador' : 'Vendedor'}
+                </span>
+                <span className="text-[11px] text-text-3">
+                  {m.isActive ? 'Ativo' : 'Inativo'}
                 </span>
               </div>
               {memberGoal > 0 && (
@@ -334,36 +216,13 @@ export default function Team() {
               onChange={(e) => setInviteForm({ ...inviteForm, role: e.target.value })}
             >
               <option value="seller">Vendedor</option>
-              <option value="moderator">Moderador</option>
-              {/* 'admin' nunca é atribuível por convite — apenas via transferência de posse */}
+              <option value="admin">Administrador</option>
             </Select>
           </FormField>
           <PrimaryButton type="submit" fullWidth disabled={inviteMut.isPending}>
             {inviteMut.isPending ? 'Enviando...' : 'Enviar Convite'}
           </PrimaryButton>
         </form>
-      </Modal>
-
-      {/* Transfer Ownership Modal */}
-      <Modal
-        open={showTransfer}
-        onClose={() => setShowTransfer(false)}
-        title="Transferir administração"
-        size="sm"
-      >
-        <p className="text-[13px] text-text-2 mb-4">
-          Você está prestes a transferir a administração desta equipe para{' '}
-          <strong>{transferTarget?.user.name}</strong>. Você se tornará <strong>Moderador</strong> e
-          perderá os poderes de administrador. Esta ação não pode ser desfeita por você sozinho —
-          apenas o novo administrador poderá transferir de volta.
-        </p>
-        <PrimaryButton
-          fullWidth
-          disabled={transferMut.isPending}
-          onClick={() => transferTarget && transferMut.mutate(transferTarget.userId)}
-        >
-          {transferMut.isPending ? 'Transferindo...' : 'Confirmar transferência'}
-        </PrimaryButton>
       </Modal>
     </div>
   );

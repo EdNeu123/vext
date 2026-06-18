@@ -17,21 +17,6 @@ enum UserRole {
   seller
 }
 
-// ==========================================
-// MULTI-TENANT: TEAMS
-// ==========================================
-
-enum TeamRole {
-  admin
-  moderator
-  seller
-}
-
-enum AccountPlan {
-  free
-  premium
-}
-
 model User {
   id           Int       @id @default(autoincrement())
   email        String    @unique @db.VarChar(320)
@@ -40,7 +25,6 @@ model User {
   phone        String?   @db.VarChar(32)
   avatar       String?   @db.Text
   role         UserRole  @default(seller)
-  plan         AccountPlan @default(free)
   permissions  Json?     @default("[]")
   salesGoal    Decimal?  @db.Decimal(15, 2)
   birthDate    DateTime? @db.Date
@@ -57,8 +41,6 @@ model User {
   notifications  Notification[]
   invitesSent    Invite[]        @relation("InvitedBy")
   refreshTokens  RefreshToken[]
-  ownedTeams      Team[]       @relation("TeamOwner")
-  teamMemberships TeamMember[]
 
   @@index([email])
   @@index([role])
@@ -85,54 +67,6 @@ model RefreshToken {
 }
 
 // ==========================================
-// TEAMS (Multi-tenant)
-// ==========================================
-
-model Team {
-  id          Int      @id @default(autoincrement())
-  name        String   @db.VarChar(255)
-  slug        String   @unique @db.VarChar(100)   // ex: "equipe-vendas-sp"
-  orgCode     String   @unique @db.VarChar(20)    // código de entrada (6 chars, ex: "ABC123")
-  ownerId     Int                                  // usuário ADMIN atual da equipe (fonte da verdade)
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  owner       User       @relation("TeamOwner", fields: [ownerId], references: [id], onDelete: Cascade)
-  members     TeamMember[]
-  contacts    Contact[]
-  cards       Card[]
-  tasks       Task[]
-  products    Product[]
-  tags        Tag[]
-  invites     Invite[]
-  landingPages LandingPage[]
-  auditLogs   AuditLog[]
-  notifications Notification[]
-
-  @@index([slug])
-  @@index([orgCode])
-  @@index([ownerId])
-  @@map("teams")
-}
-
-model TeamMember {
-  id       Int      @id @default(autoincrement())
-  teamId   Int
-  userId   Int
-  role     TeamRole @default(seller)
-  joinedAt DateTime @default(now())
-
-  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([teamId, userId])   // um usuário, um registro por equipe
-  @@index([teamId])
-  @@index([userId])
-  @@map("team_members")
-}
-
-// ==========================================
 // INVITES
 // ==========================================
 
@@ -147,23 +81,20 @@ model Invite {
   token       String       @unique @db.VarChar(64)
   email       String       @db.VarChar(320)
   name        String       @db.VarChar(255)
-  role        TeamRole     @default(seller)  // antes UserRole — agora admin|moderator|seller, mas 'admin' nunca é gravado aqui
+  role        UserRole     @default(seller)
   permissions Json?        @default("[]")
   status      InviteStatus @default(pending)
   invitedBy   Int
-  teamId      Int
   usedBy      Int?
   expiresAt   DateTime
   usedAt      DateTime?
   createdAt   DateTime     @default(now())
 
   inviter User @relation("InvitedBy", fields: [invitedBy], references: [id], onDelete: Cascade)
-  team    Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
 
   @@index([token])
   @@index([email])
   @@index([status])
-  @@index([teamId])
   @@map("invites")
 }
 
@@ -194,12 +125,10 @@ model Contact {
   churnRisk       ChurnRisk @default(low)
   npsScore        Int?
   ownerId         Int
-  teamId          Int
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
   owner User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  team  Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
   cards Card[]
   tasks Task[]
 
@@ -208,7 +137,6 @@ model Contact {
   @@index([company])
   @@index([ownerId])
   @@index([churnRisk])
-  @@index([teamId])
   @@map("contacts")
 }
 
@@ -218,18 +146,14 @@ model Contact {
 
 model Tag {
   id        Int      @id @default(autoincrement())
-  label     String   @db.VarChar(100)
+  label     String   @unique @db.VarChar(100)
   color     String   @default("#3b82f6") @db.VarChar(100)
   isActive  Boolean  @default(true)
-  teamId    Int
   createdAt DateTime @default(now())
 
-  team  Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
   cards CardTag[]
 
-  @@unique([teamId, label])
   @@index([isActive])
-  @@index([teamId])
   @@map("tags")
 }
 
@@ -243,17 +167,14 @@ model Product {
   price       Decimal  @db.Decimal(15, 2)
   description String?  @db.Text
   isActive    Boolean  @default(true)
-  teamId      Int
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  team         Team          @relation(fields: [teamId], references: [id], onDelete: Cascade)
   cards        Card[]
   landingPages LandingPage[]
 
   @@index([name])
   @@index([isActive])
-  @@index([teamId])
   @@map("products")
 }
 
@@ -278,7 +199,6 @@ model Card {
   probability             Int       @default(10)
   contactId               Int
   ownerId                 Int
-  teamId                  Int
   productId               Int?
   budgetConfirmed         Boolean   @default(false)
   decisionMakerIdentified Boolean   @default(false)
@@ -294,7 +214,6 @@ model Card {
 
   contact Contact?    @relation(fields: [contactId], references: [id], onDelete: Cascade)
   owner   User        @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  team    Team        @relation(fields: [teamId], references: [id], onDelete: Cascade)
   product Product?    @relation(fields: [productId], references: [id], onDelete: SetNull)
   tags    CardTag[]
   tasks   Task[]
@@ -304,7 +223,6 @@ model Card {
   @@index([contactId])
   @@index([ownerId])
   @@index([nextFollowUpDate])
-  @@index([teamId])
   @@map("cards")
 }
 
@@ -391,19 +309,16 @@ model Task {
   cardId      Int?
   contactId   Int?
   ownerId     Int
-  teamId      Int
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
   contact Contact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
   card   Card?    @relation(fields: [cardId], references: [id], onDelete: SetNull)
   owner   User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  team    Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
 
   @@index([status])
   @@index([dueDate])
   @@index([ownerId])
-  @@index([teamId])
   @@map("tasks")
 }
 
@@ -433,17 +348,14 @@ model LandingPage {
   conversions Int        @default(0)
   isActive    Boolean    @default(true)
   ownerId     Int
-  teamId      Int
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 
   owner   User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  team    Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
   product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
 
   @@index([slug])
   @@index([ownerId])
-  @@index([teamId])
   @@map("landing_pages")
 }
 
@@ -470,16 +382,13 @@ model AuditLog {
   reason     String?    @db.Text
   userId     Int
   userName   String     @db.VarChar(255)
-  teamId     Int?
   createdAt  DateTime   @default(now())
 
-  user User  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  team Team? @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([entityType, entityId])
   @@index([userId])
   @@index([createdAt])
-  @@index([teamId])
   @@map("audit_logs")
 }
 
@@ -502,16 +411,13 @@ model Notification {
   type      NotificationType @default(info)
   isRead    Boolean          @default(false)
   userId    Int
-  teamId    Int?
   link      String?          @db.VarChar(500)
   createdAt DateTime         @default(now())
 
-  user User  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  team Team? @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([isRead])
-  @@index([teamId])
   @@map("notifications")
 }
 

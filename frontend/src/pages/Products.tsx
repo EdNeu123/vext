@@ -6,7 +6,6 @@ import { Plus, Pencil, Trash2, Package, TrendingUp, ShoppingBag, Archive } from 
 import { productService } from '../services';
 import type { Product } from '../models';
 import { useAuthStore } from '../store/authStore';
-import { useTeamStore } from '../store/teamStore';
 import { formatCurrency, formatCurrencyShort } from '../utils/format';
 
 import Modal from '../components/ui/Modal';
@@ -18,20 +17,16 @@ const EMPTY_FORM = { name: '', price: '', description: '' };
 export default function Products() {
   const qc = useQueryClient();
   const { user } = useAuthStore();
-  const { activeTeam } = useTeamStore();
-  const activeTeamId = activeTeam?.id;
-  const isAdmin = activeTeam?.role === 'admin' || activeTeam?.role === 'moderator';
+  const isAdmin = user?.role === 'admin';
 
   // Dados
   const { data: list } = useQuery({
-    queryKey: ['products', activeTeamId],
+    queryKey: ['products'],
     queryFn: () => productService.list(),
-    enabled: !!activeTeamId,
   });
   const { data: stats } = useQuery({
-    queryKey: ['products-stats', activeTeamId],
+    queryKey: ['products-stats'],
     queryFn: () => productService.getStats(),
-    enabled: !!activeTeamId,
   });
 
   const products = (list ?? []) as Product[];
@@ -56,8 +51,8 @@ export default function Products() {
   const createMut = useMutation({
     mutationFn: (data: any) => productService.create(data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['products', activeTeamId] });
-      qc.invalidateQueries({ queryKey: ['products-stats', activeTeamId] });
+      qc.invalidateQueries({ queryKey: ['products'] });
+      qc.invalidateQueries({ queryKey: ['products-stats'] });
       setShowModal(false);
       setForm(EMPTY_FORM);
       toast.success('Produto criado');
@@ -68,8 +63,8 @@ export default function Products() {
   const updateMut = useMutation({
     mutationFn: ({ id, data }: { id: number; data: any }) => productService.update(id, data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['products', activeTeamId] });
-      qc.invalidateQueries({ queryKey: ['products-stats', activeTeamId] });
+      qc.invalidateQueries({ queryKey: ['products'] });
+      qc.invalidateQueries({ queryKey: ['products-stats'] });
       setShowModal(false);
       setEditing(null);
       setForm(EMPTY_FORM);
@@ -81,8 +76,8 @@ export default function Products() {
   const deleteMut = useMutation({
     mutationFn: (id: number) => productService.delete(id),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['products', activeTeamId] });
-      qc.invalidateQueries({ queryKey: ['products-stats', activeTeamId] });
+      qc.invalidateQueries({ queryKey: ['products'] });
+      qc.invalidateQueries({ queryKey: ['products-stats'] });
       toast.success('Produto removido');
     },
     onError: (e: any) => toast.error(e.response?.data?.message || 'Erro ao remover'),

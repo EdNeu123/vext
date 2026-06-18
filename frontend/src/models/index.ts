@@ -5,50 +5,11 @@ export interface User {
   phone: string | null;
   avatar: string | null;
   role: 'admin' | 'seller';
-  plan?: 'free' | 'premium';
   salesGoal: number | null;
   isActive: boolean;
   lastSignedIn: string;
   createdAt: string;
   updatedAt: string;
-}
-
-// ==========================================
-// MULTI-TENANT: TEAMS
-// ==========================================
-
-/** Formato retornado pela API (GET /teams, dentro de cada TeamMembership) */
-export interface TeamInfo {
-  id: number;
-  name: string;
-  slug: string;
-  ownerId: number;
-  owner?: { id: number; name: string; plan: 'free' | 'premium' };
-  orgCode?: string;
-  createdAt?: string;
-  _count?: { members: number };
-}
-
-export interface TeamMembership {
-  role: 'admin' | 'moderator' | 'seller';
-  joinedAt: string;
-  team: TeamInfo;
-}
-
-export interface TeamMember {
-  id: number;
-  teamId: number;
-  userId: number;
-  role: 'admin' | 'moderator' | 'seller';
-  joinedAt: string;
-  user: {
-    id: number;
-    name: string;
-    email: string;
-    avatar: string | null;
-    salesGoal: number | null;
-    lastSignedIn: string;
-  };
 }
 
 export interface Contact {

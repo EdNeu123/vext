@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { useTeamStore } from '../store/teamStore';
 import {
   CircleDollarSign, Check, BarChart3, Wallet,
   Clock, Plus, ChevronRight,
@@ -107,8 +106,6 @@ const KPI_DEFS: { key: TimeseriesMetric; label: string; icon: typeof CircleDolla
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const { activeTeam } = useTeamStore();
-  const activeTeamId = activeTeam?.id;
   const [metric, setMetric] = useState<'value' | 'count'>('value');
   const [rankView, setRankView] = useState<'team' | 'me'>('team');
   const [openKpi, setOpenKpi] = useState<TimeseriesMetric | null>(null);
@@ -118,42 +115,37 @@ export default function Dashboard() {
   const isCurrentMonth = selectedMonth === currentMonth;
 
   const { data: monthMetrics } = useQuery({
-    queryKey: ['dashboard-monthly', activeTeamId, selectedMonth],
+    queryKey: ['dashboard-monthly', selectedMonth],
     queryFn: () => dashboardService.getMonthly(selectedMonth),
-    enabled: !isCurrentMonth && !!activeTeamId,
+    enabled: !isCurrentMonth,
   });
   const { data: liveMetrics } = useQuery({
-    queryKey: ['dashboard-metrics', activeTeamId],
+    queryKey: ['dashboard-metrics'],
     queryFn: () => dashboardService.getMetrics(),
-    enabled: isCurrentMonth && !!activeTeamId,
+    enabled: isCurrentMonth,
   });
 
   const m = (isCurrentMonth ? liveMetrics : monthMetrics) as any ?? {};
 
   const { data: cardStats } = useQuery({
-    queryKey: ['card-stats', activeTeamId],
+    queryKey: ['card-stats'],
     queryFn: () => cardService.getStats(),
-    enabled: !!activeTeamId,
   });
   const { data: cardsResult } = useQuery({
-    queryKey: ['cards', activeTeamId],
+    queryKey: ['cards'],
     queryFn: () => cardService.list(1, 200),
-    enabled: !!activeTeamId,
   });
   const { data: todayTasksData } = useQuery({
-    queryKey: ['dashboard-today-tasks', activeTeamId],
+    queryKey: ['dashboard-today-tasks'],
     queryFn: () => dashboardService.getTodayTasks(),
-    enabled: !!activeTeamId,
   });
   const { data: upcomingTasksResult } = useQuery({
-    queryKey: ['tasks-upcoming', activeTeamId],
+    queryKey: ['tasks-upcoming'],
     queryFn: () => taskService.list(1, 50),
-    enabled: !!activeTeamId,
   });
   const { data: ranking } = useQuery({
-    queryKey: ['team-ranking', activeTeamId],
+    queryKey: ['team-ranking'],
     queryFn: () => teamService.getSellerRanking(),
-    enabled: !!activeTeamId,
   });
 
   const cards = ((cardsResult as any)?.data || []) as Card[];

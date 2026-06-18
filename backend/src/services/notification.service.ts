@@ -1,10 +1,9 @@
 import { prisma } from '../config/prisma';
 
 export class NotificationService {
-  /** Lista notificações do usuário restritas à equipe ativa (ou globais, teamId null) */
-  async list(userId: number, teamId: number) {
+  async list(userId: number) {
     return prisma.notification.findMany({
-      where: { userId, OR: [{ teamId }, { teamId: null }] },
+      where: { userId },
       orderBy: { createdAt: 'desc' },
       take: 30,
     });
@@ -14,20 +13,15 @@ export class NotificationService {
     await prisma.notification.update({ where: { id }, data: { isRead: true } });
   }
 
-  async markAllAsRead(userId: number, teamId: number) {
-    await prisma.notification.updateMany({
-      where: { userId, OR: [{ teamId }, { teamId: null }] },
-      data: { isRead: true },
-    });
+  async markAllAsRead(userId: number) {
+    await prisma.notification.updateMany({ where: { userId }, data: { isRead: true } });
   }
 
-  async getUnreadCount(userId: number, teamId: number) {
-    return prisma.notification.count({
-      where: { userId, isRead: false, OR: [{ teamId }, { teamId: null }] },
-    });
+  async getUnreadCount(userId: number) {
+    return prisma.notification.count({ where: { userId, isRead: false } });
   }
 
-  async create(data: { title: string; message?: string; type?: any; userId: number; teamId?: number; link?: string }) {
+  async create(data: { title: string; message?: string; type?: any; userId: number; link?: string }) {
     return prisma.notification.create({ data });
   }
 }

@@ -10,18 +10,25 @@ const toNum = (v: unknown): number => {
 
 export class DashboardService {
   /**
-   * Métricas consolidadas do dashboard, escopadas à equipe ativa.
+   * Métricas consolidadas do dashboard.
    * Retorna sempre 200 com `isEmpty: true` quando não há dados,
    * em vez de lançar 500 — o frontend exibe estado vazio.
    */
-  async getMetrics(teamId: number) {
+  async getMetrics(userId: number, role: string) {
     try {
-      const where = { teamId };
+      const where = role !== 'admin' ? { ownerId: userId } : {};
 
       const [cards, contactCount, pendingTasks] = await Promise.all([
-        prisma.card.findMany({ where, select: { stage: true, value: true } }),
-        prisma.contact.count({ where: { teamId } }),
-        prisma.task.count({ where: { status: 'pending', teamId } }),
+        prisma.card.findMany({
+          where,
+          select: { stage: true, value: true },
+        }),
+        role !== 'admin'
+          ? prisma.contact.count({ where: { ownerId: userId } })
+          : prisma.contact.count(),
+        prisma.task.count({
+          where: { status: 'pending', ...(role !== 'admin' ? { ownerId: userId } : {}) },
+        }),
       ]);
 
       const list = cards as CardSlice[];
@@ -51,7 +58,8 @@ export class DashboardService {
       };
     } catch (error) {
       logger.error('DashboardService.getMetrics falhou', {
-        teamId,
+        userId,
+        role,
         error: error instanceof Error ? { name: error.name, message: error.message, stack: error.stack } : error,
       });
       throw error;
@@ -59,11 +67,10 @@ export class DashboardService {
   }
 
   /**
-   * Progresso da meta de vendas do usuário, restrito aos cards "won"
-   * da equipe ativa (um usuário pode ter cards em várias equipes).
+   * Progresso da meta de vendas do usuário.
    * Se o usuário não existir ou não tiver meta, devolve payload neutro em vez de crashar.
    */
-  async getGoalProgress(userId: number, teamId: number) {
+  async getGoalProgress(userId: number) {
     try {
       const [user, wonDeals] = await Promise.all([
         prisma.user.findUnique({
@@ -71,7 +78,7 @@ export class DashboardService {
           select: { id: true, salesGoal: true },
         }),
         prisma.card.findMany({
-          where: { ownerId: userId, teamId, stage: 'won' },
+          where: { ownerId: userId, stage: 'won' },
           select: { value: true },
         }),
       ]);
@@ -107,7 +114,7 @@ export class DashboardService {
       };
     } catch (error) {
       logger.error('DashboardService.getGoalProgress falhou', {
-        userId, teamId,
+        userId,
         error: error instanceof Error ? { name: error.name, message: error.message, stack: error.stack } : error,
       });
       throw error;
@@ -115,16 +122,19 @@ export class DashboardService {
   }
 
   /**
-   * Tarefas de hoje, escopadas à equipe ativa.
+   * Tarefas de hoje.
    */
-  async getTodayTasks(teamId: number) {
+  async getTodayTasks(userId: number, role: string) {
     try {
       const now = new Date();
       const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
       const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
 
+      const where: Record<string, unknown> = { dueDate: { gte: start, lte: end } };
+      if (role !== 'admin') where.ownerId = userId;
+
       return await prisma.task.findMany({
-        where: { teamId, dueDate: { gte: start, lte: end } },
+        where,
         orderBy: { dueDate: 'asc' },
         include: {
           contact: { select: { id: true, name: true } },
@@ -133,7 +143,8 @@ export class DashboardService {
       });
     } catch (error) {
       logger.error('DashboardService.getTodayTasks falhou', {
-        teamId,
+        userId,
+        role,
         error: error instanceof Error ? { name: error.name, message: error.message, stack: error.stack } : error,
       });
       throw error;
@@ -141,7 +152,7 @@ export class DashboardService {
   }
 
   /**
-   * Séries temporais para os KPIs (modal "Ver mais" no dashboard), escopadas à equipe.
+   * Séries temporais para os KPIs (modal "Ver mais" no dashboard).
    * Agrega por dia (last 7d/30d) ou por mês (last 12m).
    *
    * metric: 'pipeline' | 'won' | 'conversion' | 'avgTicket'
@@ -150,13 +161,14 @@ export class DashboardService {
    * Retorna { points: [{ date, value }], comparison: { current, previous, deltaPct } }
    */
   async getTimeseries(
-    teamId: number,
+    userId: number,
+    role: string,
     metric: 'pipeline' | 'won' | 'conversion' | 'avgTicket',
     period: '7d' | '30d' | '12m' = '30d',
   ) {
     try {
       const now = new Date();
-      const teamWhere = { teamId };
+      const ownerWhere = role !== 'admin' ? { ownerId: userId } : {};
 
       // Buckets de tempo
       const buckets: { start: Date; end: Date; label: string }[] = [];
@@ -184,7 +196,7 @@ export class DashboardService {
       if (metric === 'pipeline') {
         // Pipeline ativo no fim de cada bucket (cards criados <= bucket.end e não fechados antes)
         const allCards = await prisma.card.findMany({
-          where: { ...teamWhere, createdAt: { lte: overallEnd } },
+          where: { ...ownerWhere, createdAt: { lte: overallEnd } },
           select: { value: true, createdAt: true, closedAt: true, stage: true },
         });
         for (const b of buckets) {
@@ -200,7 +212,7 @@ export class DashboardService {
         // Soma de cards ganhos fechados em cada bucket
         const won = await prisma.card.findMany({
           where: {
-            ...teamWhere,
+            ...ownerWhere,
             stage: 'won',
             closedAt: { gte: overallStart, lt: overallEnd },
           },
@@ -217,7 +229,7 @@ export class DashboardService {
         // (won / (won + lost)) * 100 fechados em cada bucket
         const closed = await prisma.card.findMany({
           where: {
-            ...teamWhere,
+            ...ownerWhere,
             stage: { in: ['won', 'lost'] },
             closedAt: { gte: overallStart, lt: overallEnd },
           },
@@ -233,7 +245,7 @@ export class DashboardService {
         // Ticket médio dos cards fechados (won) em cada bucket
         const won = await prisma.card.findMany({
           where: {
-            ...teamWhere,
+            ...ownerWhere,
             stage: 'won',
             closedAt: { gte: overallStart, lt: overallEnd },
           },
@@ -263,7 +275,7 @@ export class DashboardService {
       };
     } catch (error) {
       logger.error('DashboardService.getTimeseries falhou', {
-        teamId, metric, period,
+        userId, role, metric, period,
         error: error instanceof Error ? { name: error.name, message: error.message, stack: error.stack } : error,
       });
       throw error;
@@ -271,10 +283,10 @@ export class DashboardService {
   }
 
   /**
-   * Métricas filtradas por mês específico (YYYY-MM), escopadas à equipe ativa.
+   * Métricas filtradas por mês específico (YYYY-MM).
    * Mesmo formato de getMetrics, mas considera só cards/tasks do mês.
    */
-  async getMonthlyMetrics(teamId: number, monthStr: string) {
+  async getMonthlyMetrics(userId: number, role: string, monthStr: string) {
     try {
       const [year, month] = monthStr.split('-').map(Number);
       if (!year || !month || month < 1 || month > 12) {
@@ -283,13 +295,13 @@ export class DashboardService {
       const start = new Date(year, month - 1, 1);
       const end = new Date(year, month, 1);
 
-      const teamWhere = { teamId };
+      const ownerWhere = role !== 'admin' ? { ownerId: userId } : {};
 
       const [activeCards, wonInMonth, lostInMonth, contactCount, pendingTasks] = await Promise.all([
         // Pipeline ativo NO FIM do mês
         prisma.card.findMany({
           where: {
-            ...teamWhere,
+            ...ownerWhere,
             createdAt: { lt: end },
             OR: [{ closedAt: null }, { closedAt: { gte: end } }],
             stage: { notIn: ['won', 'lost'] },
@@ -297,15 +309,21 @@ export class DashboardService {
           select: { value: true },
         }),
         prisma.card.findMany({
-          where: { ...teamWhere, stage: 'won', closedAt: { gte: start, lt: end } },
+          where: { ...ownerWhere, stage: 'won', closedAt: { gte: start, lt: end } },
           select: { value: true },
         }),
         prisma.card.count({
-          where: { ...teamWhere, stage: 'lost', closedAt: { gte: start, lt: end } },
+          where: { ...ownerWhere, stage: 'lost', closedAt: { gte: start, lt: end } },
         }),
-        prisma.contact.count({ where: { teamId, createdAt: { lt: end } } }),
+        role !== 'admin'
+          ? prisma.contact.count({ where: { ownerId: userId, createdAt: { lt: end } } })
+          : prisma.contact.count({ where: { createdAt: { lt: end } } }),
         prisma.task.count({
-          where: { status: 'pending', dueDate: { gte: start, lt: end }, teamId },
+          where: {
+            status: 'pending',
+            dueDate: { gte: start, lt: end },
+            ...(role !== 'admin' ? { ownerId: userId } : {}),
+          },
         }),
       ]);
 
@@ -329,7 +347,7 @@ export class DashboardService {
       };
     } catch (error) {
       logger.error('DashboardService.getMonthlyMetrics falhou', {
-        teamId, monthStr,
+        userId, role, monthStr,
         error: error instanceof Error ? { name: error.name, message: error.message, stack: error.stack } : error,
       });
       throw error;

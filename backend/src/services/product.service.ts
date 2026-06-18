@@ -7,30 +7,30 @@ const toNum = (v: unknown): number => {
 };
 
 export class ProductService {
-  async list(teamId: number) {
+  async list() {
     return prisma.product.findMany({
-      where: { isActive: true, teamId },
+      where: { isActive: true },
       orderBy: { name: 'asc' },
     });
   }
 
-  async getById(id: number, teamId: number) {
-    const product = await prisma.product.findFirst({ where: { id, teamId } });
+  async getById(id: number) {
+    const product = await prisma.product.findUnique({ where: { id } });
     if (!product) throw ApiError.notFound('Produto não encontrado');
     return product;
   }
 
-  async create(data: { name: string; price: number; description?: string }, teamId: number) {
-    return prisma.product.create({ data: { ...data, teamId } });
+  async create(data: { name: string; price: number; description?: string }) {
+    return prisma.product.create({ data });
   }
 
-  async update(id: number, data: Record<string, any>, teamId: number) {
-    await this.getById(id, teamId);
+  async update(id: number, data: Record<string, any>) {
+    await this.getById(id);
     return prisma.product.update({ where: { id }, data });
   }
 
-  async delete(id: number, teamId: number) {
-    await this.getById(id, teamId);
+  async delete(id: number) {
+    await this.getById(id);
     return prisma.product.update({ where: { id }, data: { isActive: false } });
   }
 
@@ -39,14 +39,14 @@ export class ProductService {
    * Para cada produto ativo retorna: total vendido (cards won), receita gerada, ticket médio.
    * Útil pra dashboard "produtos mais rentáveis".
    */
-  async getStats(teamId: number) {
+  async getStats() {
     const products = await prisma.product.findMany({
-      where: { isActive: true, teamId },
+      where: { isActive: true },
       select: { id: true, name: true, price: true },
     });
 
     const wonCards = await prisma.card.findMany({
-      where: { teamId, stage: 'won', productId: { not: null } },
+      where: { stage: 'won', productId: { not: null } },
       select: { productId: true, value: true, closedAt: true },
     });
 

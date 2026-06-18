@@ -4,7 +4,6 @@ import { toast } from 'sonner';
 import { Plus } from 'lucide-react';
 
 import { taskService, contactService, cardService } from '../services';
-import { useTeamStore } from '../store/teamStore';
 import type { Task, TaskType, TaskPriority } from '../models';
 
 import Modal from '../components/ui/Modal';
@@ -35,8 +34,6 @@ function toLocalDateTimeInput(date: Date): string {
 
 export default function Calendar() {
   const qc = useQueryClient();
-  const { activeTeam } = useTeamStore();
-  const activeTeamId = activeTeam?.id;
 
   // Data atual selecionada (ponto de partida = hoje)
   const [selectedDate, setSelectedDate] = useState<Date>(() => {
@@ -58,34 +55,28 @@ export default function Calendar() {
   }, []);
 
   // Carrega tasks do mês visível (pra pintar bolinhas no calendário do mês)
-  // IMPORTANTE: backend usa mês 0-indexed (0=Jan, 11=Dez), igual ao JS Date.
-  // NÃO adicionar +1 aqui — a API valida month < 0 || month > 11.
   const monthYear = visibleMonth.getFullYear();
-  const monthIdx  = visibleMonth.getMonth(); // 0-indexed, 0-11
+  const monthIdx = visibleMonth.getMonth() + 1; // backend usa 1-12
   const { data: monthTasks } = useQuery({
-    queryKey: ['tasks-by-month', activeTeamId, monthYear, monthIdx],
+    queryKey: ['tasks-by-month', monthYear, monthIdx],
     queryFn: () => taskService.getByMonth(monthYear, monthIdx),
-    enabled: !!activeTeamId,
   });
 
   // Tasks do dia selecionado (mais detalhe — vem do mesmo set ou da chamada by-date pra garantir freshness)
   const selectedDateStr = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`;
   const { data: dayTasksData } = useQuery({
-    queryKey: ['tasks-by-date', activeTeamId, selectedDateStr],
+    queryKey: ['tasks-by-date', selectedDateStr],
     queryFn: () => taskService.getByDate(selectedDateStr),
-    enabled: !!activeTeamId,
   });
 
   // Lista pra dropdowns do modal de criação
   const { data: contactsResult } = useQuery({
-    queryKey: ['contacts-list', activeTeamId],
+    queryKey: ['contacts-list'],
     queryFn: () => contactService.list('', 1, 200),
-    enabled: !!activeTeamId,
   });
   const { data: cardsResult } = useQuery({
-    queryKey: ['cards', activeTeamId],
+    queryKey: ['cards'],
     queryFn: () => cardService.list(1, 200),
-    enabled: !!activeTeamId,
   });
   const contactList = ((contactsResult as any)?.data || []) as { id: number; name: string; company: string | null }[];
   const cardList = ((cardsResult as any)?.data || []) as { id: number; title: string }[];
@@ -104,10 +95,10 @@ export default function Calendar() {
   const updateMut = useMutation({
     mutationFn: ({ id, data }: { id: number; data: any }) => taskService.update(id, data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['tasks-by-date', activeTeamId, selectedDateStr] });
-      qc.invalidateQueries({ queryKey: ['tasks-by-month', activeTeamId] });
-      qc.invalidateQueries({ queryKey: ['dashboard-today-tasks', activeTeamId] });
-      qc.invalidateQueries({ queryKey: ['tasks-upcoming', activeTeamId] });
+      qc.invalidateQueries({ queryKey: ['tasks-by-date', selectedDateStr] });
+      qc.invalidateQueries({ queryKey: ['tasks-by-month'] });
+      qc.invalidateQueries({ queryKey: ['dashboard-today-tasks'] });
+      qc.invalidateQueries({ queryKey: ['tasks-upcoming'] });
     },
   });
 
@@ -153,10 +144,10 @@ export default function Calendar() {
   const createMut = useMutation({
     mutationFn: (data: any) => taskService.create(data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['tasks-by-date', activeTeamId, selectedDateStr] });
-      qc.invalidateQueries({ queryKey: ['tasks-by-month', activeTeamId] });
-      qc.invalidateQueries({ queryKey: ['dashboard-today-tasks', activeTeamId] });
-      qc.invalidateQueries({ queryKey: ['tasks-upcoming', activeTeamId] });
+      qc.invalidateQueries({ queryKey: ['tasks-by-date', selectedDateStr] });
+      qc.invalidateQueries({ queryKey: ['tasks-by-month'] });
+      qc.invalidateQueries({ queryKey: ['dashboard-today-tasks'] });
+      qc.invalidateQueries({ queryKey: ['tasks-upcoming'] });
       setShowModal(false);
       setForm({
         title: '', type: 'follow_up', priority: 'medium',

@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
-import { useTeamStore } from '../store/teamStore';
 import { toast } from 'sonner';
 import PrimaryButton from '../components/ui/PrimaryButton';
 import { FormField, Input } from '../components/ui/Form';
@@ -23,9 +22,7 @@ export default function Register() {
     try {
       await register(name, email, password, inviteToken);
       toast.success('Conta criada!');
-      // Registro via convite já entra na equipe (auto-seleção pelo authStore
-      // se for a única). Sem convite, vai para o seletor de workspace.
-      navigate(useTeamStore.getState().activeTeam ? '/dashboard' : '/workspace');
+      navigate('/dashboard');
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Erro no registro');
     } finally {
