@@ -90,7 +90,7 @@ async function main(): Promise<void> {
 
   // ── 3. Subir containers ─────────────────────
   console.log(yellow('[3/6]'), 'Subindo containers Docker...');
-  run(`docker compose -f "${composeFile}" up -d --remove-orphans`);
+  run(`docker compose --env-file "${envFile}" -f "${composeFile}" up -d --remove-orphans`);
   console.log(green('  ✔ Containers iniciados'));
 
   // ── 4. Aguardar PostgreSQL ──────────────────

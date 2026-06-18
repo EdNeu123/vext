@@ -7,6 +7,7 @@ import {
   revokeAllRefreshTokens,
 } from '../utils/jwt';
 import { ApiError } from '../utils/helpers';
+import { teamService } from './team.service';
 import type { LoginInput, RegisterInput } from '../models/schemas';
 
 export class AuthService {
@@ -28,8 +29,23 @@ export class AuthService {
     });
     const refreshToken = await generateRefreshToken(user.id);
 
+    // Busca equipes do usuário para o seletor de workspace (/workspace)
+    const teams = await prisma.teamMember.findMany({
+      where: { userId: user.id },
+      include: {
+        team: {
+          select: {
+            id: true, name: true, slug: true, ownerId: true,
+            owner: { select: { plan: true } },
+            _count: { select: { members: true } },
+          },
+        },
+      },
+      orderBy: { joinedAt: 'asc' },
+    });
+
     const { password: _, ...userPub } = user;
-    return { user: userPub, accessToken, refreshToken };
+    return { user: userPub, accessToken, refreshToken, teams };
   }
 
   async register(input: RegisterInput) {
@@ -38,14 +54,25 @@ export class AuthService {
 
     let role: 'admin' | 'seller' = 'seller';
     let inviteId: number | undefined;
+    let invite: { id: number; teamId: number; role: 'admin' | 'moderator' | 'seller' } | null = null;
 
     if (input.inviteToken) {
-      const invite = await prisma.invite.findUnique({ where: { token: input.inviteToken } });
-      if (!invite || invite.status !== 'pending' || new Date() > invite.expiresAt) {
+      const found = await prisma.invite.findUnique({ where: { token: input.inviteToken } });
+      if (!found || found.status !== 'pending' || new Date() > found.expiresAt) {
         throw ApiError.badRequest('Convite inválido ou expirado');
       }
-      role = invite.role;
-      inviteId = invite.id;
+
+      // Revalida o limite de membros no momento do ACEITE (concorrência —
+      // dois convites podem ser aceitos quase simultaneamente).
+      const team = await prisma.team.findUnique({
+        where: { id: found.teamId },
+        include: { owner: { select: { plan: true } } },
+      });
+      if (!team) throw ApiError.notFound('Equipe do convite não encontrada');
+      await teamService.assertMemberLimitNotReached(found.teamId, team.owner.plan);
+
+      invite = { id: found.id, teamId: found.teamId, role: found.role };
+      inviteId = found.id;
     }
 
     const hashedPassword = await hashPassword(input.password);
@@ -53,10 +80,16 @@ export class AuthService {
       data: { name: input.name, email: input.email, password: hashedPassword, role },
     });
 
-    if (inviteId) {
+    if (inviteId && invite) {
       await prisma.invite.update({
         where: { id: inviteId },
         data: { status: 'used', usedBy: user.id, usedAt: new Date() },
+      });
+
+      // Adiciona o novo usuário como membro da equipe do convite.
+      // role só pode ser 'moderator' ou 'seller' — garantido pelo createInviteSchema.
+      await prisma.teamMember.create({
+        data: { teamId: invite.teamId, userId: user.id, role: invite.role },
       });
     }
 
@@ -65,8 +98,23 @@ export class AuthService {
     });
     const refreshToken = await generateRefreshToken(user.id);
 
+    // Busca equipes do usuário (vazio se não veio de convite)
+    const teams = await prisma.teamMember.findMany({
+      where: { userId: user.id },
+      include: {
+        team: {
+          select: {
+            id: true, name: true, slug: true, ownerId: true,
+            owner: { select: { plan: true } },
+            _count: { select: { members: true } },
+          },
+        },
+      },
+      orderBy: { joinedAt: 'asc' },
+    });
+
     const { password: _, ...userPub } = user;
-    return { user: userPub, accessToken, refreshToken };
+    return { user: userPub, accessToken, refreshToken, teams };
   }
 
   async refreshToken(token: string) {
@@ -82,7 +130,7 @@ export class AuthService {
       where: { id: userId },
       select: {
         id: true, email: true, name: true, phone: true, avatar: true,
-        role: true, salesGoal: true, birthDate: true, isActive: true,
+        role: true, plan: true, salesGoal: true, birthDate: true, isActive: true,
         lastSignedIn: true, createdAt: true, updatedAt: true,
       },
     });
@@ -106,7 +154,7 @@ export class AuthService {
       data: safe,
       select: {
         id: true, email: true, name: true, phone: true, avatar: true,
-        role: true, salesGoal: true, lastSignedIn: true, createdAt: true, updatedAt: true,
+        role: true, plan: true, salesGoal: true, lastSignedIn: true, createdAt: true, updatedAt: true,
       },
     });
   }

@@ -5,6 +5,7 @@ export * from './task.service';
 export * from './tag.service';
 export * from './product.service';
 export * from './team.service';
+export * from './workspace.service';
 export * from './invite.service';
 export * from './notification.service';
 export * from './dashboard.service';

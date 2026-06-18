@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { contactService } from '../services';
+import { useTeamStore } from '../store/teamStore';
 import { formatCurrency } from '../utils/format';
 import { initialsOf, colorForName } from '../utils/avatar';
 import { toast } from 'sonner';
@@ -26,22 +27,25 @@ const EMPTY_FORM = { name: '', email: '', phone: '', company: '', position: '' }
 
 export default function Contacts() {
   const qc = useQueryClient();
+  const { activeTeam } = useTeamStore();
+  const activeTeamId = activeTeam?.id;
   const [search, setSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<Contact | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
 
   const { data: result } = useQuery({
-    queryKey: ['contacts', search],
+    queryKey: ['contacts', activeTeamId, search],
     queryFn: () => contactService.list(search, 1, 200),
+    enabled: !!activeTeamId,
   });
   const contacts = ((result as any)?.data || []) as Contact[];
 
   const createMut = useMutation({
     mutationFn: (data: any) => contactService.create(data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['contacts'] });
-      qc.invalidateQueries({ queryKey: ['contacts-list'] });
+      qc.invalidateQueries({ queryKey: ['contacts', activeTeamId] });
+      qc.invalidateQueries({ queryKey: ['contacts-list', activeTeamId] });
       setShowModal(false);
       setForm(EMPTY_FORM);
       toast.success('Contato criado!');
@@ -52,8 +56,8 @@ export default function Contacts() {
   const updateMut = useMutation({
     mutationFn: ({ id, data }: { id: number; data: any }) => contactService.update(id, data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['contacts'] });
-      qc.invalidateQueries({ queryKey: ['contacts-list'] });
+      qc.invalidateQueries({ queryKey: ['contacts', activeTeamId] });
+      qc.invalidateQueries({ queryKey: ['contacts-list', activeTeamId] });
       setShowModal(false);
       setEditing(null);
       setForm(EMPTY_FORM);
@@ -65,8 +69,8 @@ export default function Contacts() {
   const deleteMut = useMutation({
     mutationFn: (id: number) => contactService.delete(id),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['contacts'] });
-      qc.invalidateQueries({ queryKey: ['contacts-list'] });
+      qc.invalidateQueries({ queryKey: ['contacts', activeTeamId] });
+      qc.invalidateQueries({ queryKey: ['contacts-list', activeTeamId] });
       toast.success('Contato removido');
     },
     onError: (err: any) => toast.error(err.response?.data?.message || 'Erro ao remover'),

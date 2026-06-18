@@ -8,22 +8,26 @@ export class AuditService {
     userId: number,
     userName: string,
     changes?: Record<string, any>,
-    reason?: string
+    reason?: string,
+    teamId?: number,
   ) {
     return prisma.auditLog.create({
-      data: { entityType, entityId, action, userId, userName, changes, reason },
+      data: { entityType, entityId, action, userId, userName, changes, reason, teamId },
     });
   }
 
-  async getByEntity(entityType: any, entityId: number) {
+  /** Histórico de uma entidade, restrito à equipe (quando informado) */
+  async getByEntity(entityType: any, entityId: number, teamId?: number) {
     return prisma.auditLog.findMany({
-      where: { entityType, entityId },
+      where: { entityType, entityId, ...(teamId ? { teamId } : {}) },
       orderBy: { createdAt: 'desc' },
     });
   }
 
-  async getRecent(limit = 100) {
+  /** Logs recentes da equipe atual */
+  async getRecent(teamId: number, limit = 100) {
     return prisma.auditLog.findMany({
+      where: { teamId },
       orderBy: { createdAt: 'desc' },
       take: limit,
     });

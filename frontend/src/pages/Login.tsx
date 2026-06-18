@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuthStore } from "../store/authStore";
+import { useTeamStore } from "../store/teamStore";
 import { toast } from "sonner";
 import PrimaryButton from "../components/ui/PrimaryButton";
 import { FormField, Input } from "../components/ui/Form";
@@ -19,7 +20,10 @@ export default function Login() {
     try {
       await login(email, password);
       toast.success("Login realizado!");
-      navigate("/dashboard");
+      // Se o usuário tem apenas 1 equipe, ela já foi auto-selecionada pelo
+      // authStore e podemos ir direto ao dashboard. Caso contrário (0 ou
+      // várias equipes), o seletor de workspace decide o próximo passo.
+      navigate(useTeamStore.getState().activeTeam ? "/dashboard" : "/workspace");
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Erro no login");
     } finally {
