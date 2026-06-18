@@ -5,11 +5,11 @@ import { apiResponse } from '../utils/helpers';
 
 export class LandingPageController {
   async list(req: AuthRequest, res: Response, next: NextFunction) {
-    try { res.json(apiResponse(await landingPageService.list(req.user!.id, req.user!.role))); } catch (e) { next(e); }
+    try { res.json(apiResponse(await landingPageService.list(req.teamId!))); } catch (e) { next(e); }
   }
 
   async getById(req: AuthRequest, res: Response, next: NextFunction) {
-    try { res.json(apiResponse(await landingPageService.getById(Number(req.params.id)))); } catch (e) { next(e); }
+    try { res.json(apiResponse(await landingPageService.getById(Number(req.params.id), req.teamId!))); } catch (e) { next(e); }
   }
 
   async getBySlug(req: AuthRequest, res: Response, next: NextFunction) {
@@ -18,19 +18,19 @@ export class LandingPageController {
 
   async create(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      res.status(201).json(apiResponse(await landingPageService.create(req.body, req.user!.id, req.user!.name), 'Landing Page criada'));
+      res.status(201).json(apiResponse(await landingPageService.create(req.body, req.user!.id, req.user!.name, req.teamId!), 'Landing Page criada'));
     } catch (e) { next(e); }
   }
 
   async update(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      res.json(apiResponse(await landingPageService.update(Number(req.params.id), req.body, req.user!.id, req.user!.name), 'Landing Page atualizada'));
+      res.json(apiResponse(await landingPageService.update(Number(req.params.id), req.body, req.user!.id, req.user!.name, req.teamId!), 'Landing Page atualizada'));
     } catch (e) { next(e); }
   }
 
   async delete(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      await landingPageService.delete(Number(req.params.id), req.user!.id, req.user!.name);
+      await landingPageService.delete(Number(req.params.id), req.user!.id, req.user!.name, req.teamId!);
       res.json(apiResponse(null, 'Landing Page deletada'));
     } catch (e) { next(e); }
   }

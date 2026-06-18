@@ -21,10 +21,34 @@ async function main() {
       email: 'admin@vext.com.br',
       password: hashedPassword,
       role: 'admin',
+      plan: 'premium',
       salesGoal: 100000,
     },
   });
   console.log(`  ✅ Admin: ${admin.email} (senha: ${adminPassword})`);
+
+  // ====================================================================
+  // EQUIPE PADRÃO (multi-tenant)
+  // ====================================================================
+
+  let team = await prisma.team.findUnique({ where: { slug: 'equipe-principal' } });
+  if (!team) {
+    team = await prisma.team.create({
+      data: {
+        name: 'Equipe Principal',
+        slug: 'equipe-principal',
+        orgCode: 'VEXT01',
+        ownerId: admin.id,
+      },
+    });
+  }
+
+  await prisma.teamMember.upsert({
+    where: { teamId_userId: { teamId: team.id, userId: admin.id } },
+    update: { role: 'admin' },
+    create: { teamId: team.id, userId: admin.id, role: 'admin' },
+  });
+  console.log(`  ✅ Equipe: ${team.name} (orgCode: ${team.orgCode})`);
 
   // ====================================================================
   // TAGS
@@ -39,7 +63,11 @@ async function main() {
     { label: 'Enterprise', color: '#10b981' },
   ];
   for (const tag of tags) {
-    await prisma.tag.upsert({ where: { label: tag.label }, update: {}, create: tag });
+    await prisma.tag.upsert({
+      where: { teamId_label: { teamId: team.id, label: tag.label } },
+      update: {},
+      create: { ...tag, teamId: team.id },
+    });
   }
   console.log(`  ✅ ${tags.length} tags`);
 
@@ -53,11 +81,10 @@ async function main() {
     { name: 'Plano Enterprise',   price: 799.90, description: 'Para grandes operações' },
   ];
   for (const p of products) {
-    await prisma.product.upsert({
-      where: { id: products.indexOf(p) + 1 },
-      update: {},
-      create: p,
-    });
+    const existing = await prisma.product.findFirst({ where: { teamId: team.id, name: p.name } });
+    if (!existing) {
+      await prisma.product.create({ data: { ...p, teamId: team.id } });
+    }
   }
   console.log(`  ✅ ${products.length} produtos`);
 

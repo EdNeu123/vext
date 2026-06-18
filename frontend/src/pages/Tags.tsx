@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { tagService } from '../services';
+import { useTeamStore } from '../store/teamStore';
 import { toast } from 'sonner';
 import Modal from '../components/ui/Modal';
 import PrimaryButton from '../components/ui/PrimaryButton';
@@ -17,20 +18,23 @@ const EMPTY_FORM = { label: '', color: '#3b82f6' };
 
 export default function Tags() {
   const qc = useQueryClient();
+  const { activeTeam } = useTeamStore();
+  const activeTeamId = activeTeam?.id;
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<Tag | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
 
   const { data } = useQuery({
-    queryKey: ['tags'],
+    queryKey: ['tags', activeTeamId],
     queryFn: () => tagService.list(),
+    enabled: !!activeTeamId,
   });
   const tags = (data ?? []) as Tag[];
 
   const createMut = useMutation({
     mutationFn: (d: any) => tagService.create(d),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['tags'] });
+      qc.invalidateQueries({ queryKey: ['tags', activeTeamId] });
       setShowModal(false);
       setForm(EMPTY_FORM);
       toast.success('Tag criada!');
@@ -40,7 +44,7 @@ export default function Tags() {
   const updateMut = useMutation({
     mutationFn: ({ id, data }: { id: number; data: any }) => tagService.update(id, data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['tags'] });
+      qc.invalidateQueries({ queryKey: ['tags', activeTeamId] });
       setShowModal(false);
       setEditing(null);
       setForm(EMPTY_FORM);
@@ -51,7 +55,7 @@ export default function Tags() {
   const deleteMut = useMutation({
     mutationFn: (id: number) => tagService.delete(id),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['tags'] });
+      qc.invalidateQueries({ queryKey: ['tags', activeTeamId] });
       toast.success('Tag removida');
     },
     onError: (e: any) => toast.error(e.response?.data?.message || 'Erro'),
