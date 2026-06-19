@@ -94,7 +94,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
     try {
       const profile = await authService.getProfile();
       set({ user: profile as User });
-      localStorage.setItem('vext_user', JSON.stringify(profile));
+      // FIX #10: sessionStorage (escopo de aba) — nunca localStorage para dados de usuário
+      sessionStorage.setItem('vext_user', JSON.stringify(profile));
     } catch {}
   },
 
@@ -103,12 +104,14 @@ export const useAppStore = create<AppStore>((set, get) => ({
       try {
         const profile = await authService.getProfile();
         set({ user: profile as User, isAuthenticated: true });
-        localStorage.setItem('vext_user', JSON.stringify(profile));
+        // FIX #10: sessionStorage apenas — sem rastro em localStorage
+        sessionStorage.setItem('vext_user', JSON.stringify(profile));
       } catch {
         set({ user: null, isAuthenticated: false });
-        localStorage.removeItem('vext_access_token');
-        localStorage.removeItem('vext_refresh_token');
-        localStorage.removeItem('vext_user');
+        // FIX #10: limpar apenas sessionStorage
+        sessionStorage.removeItem('vext_access_token');
+        sessionStorage.removeItem('vext_user');
+        sessionStorage.removeItem('vext_active_team');
       }
     }
   },

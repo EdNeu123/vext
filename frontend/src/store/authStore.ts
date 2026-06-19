@@ -66,7 +66,9 @@ export const useAuthStore = create<AuthStore>((set) => ({
     try {
       const profile = await authService.getProfile();
       set({ user: profile as User });
-      localStorage.setItem('vext_user', JSON.stringify(profile));
+      // FIX #10: user em sessionStorage (escopo de aba) — nunca em localStorage
+      // localStorage sobrevive ao fechamento da aba e pode ser lido por XSS persistente
+      sessionStorage.setItem('vext_user', JSON.stringify(profile));
     } catch {}
   },
 
@@ -75,12 +77,14 @@ export const useAuthStore = create<AuthStore>((set) => ({
       try {
         const profile = await authService.getProfile();
         set({ user: profile as User, isAuthenticated: true });
-        localStorage.setItem('vext_user', JSON.stringify(profile));
+        // FIX #10: sessionStorage apenas — tokens NUNCA vão para localStorage
+        sessionStorage.setItem('vext_user', JSON.stringify(profile));
       } catch {
         set({ user: null, isAuthenticated: false });
-        localStorage.removeItem('vext_access_token');
-        localStorage.removeItem('vext_refresh_token');
-        localStorage.removeItem('vext_user');
+        // FIX #10: limpar apenas sessionStorage; não há mais nada em localStorage
+        sessionStorage.removeItem('vext_access_token');
+        sessionStorage.removeItem('vext_user');
+        sessionStorage.removeItem('vext_active_team');
       }
     }
   },

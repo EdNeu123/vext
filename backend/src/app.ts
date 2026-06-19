@@ -16,11 +16,6 @@ const app = express();
 // ==========================================
 // PROXY TRUST (Vercel / Cloud Run / qualquer reverse proxy)
 // ==========================================
-// Vercel injeta o IP real em X-Forwarded-For. Sem `trust proxy`,
-// req.ip retorna o IP da edge (não do cliente) e o express-rate-limit v7+
-// lança ERR_ERL_UNEXPECTED_X_FORWARDED_FOR dentro do keyGenerator → 500.
-// O valor `1` significa: confiar em EXATAMENTE um hop (a edge da Vercel).
-// NUNCA use `true` em produção — permitiria spoofing de X-Forwarded-For.
 app.set('trust proxy', 1);
 
 // ==========================================
@@ -28,7 +23,9 @@ app.set('trust proxy', 1);
 // ==========================================
 
 app.use(helmet());
-app.use(cors({
+
+// FIX #3: corsOptions centralizado para reusar em app.options()
+const corsOptions: cors.CorsOptions = {
   origin: (origin, callback) => {
     const allowed = env.CORS_ORIGIN.split(',').map((o) => o.trim());
     if (!origin && env.NODE_ENV !== 'production') return callback(null, true);
@@ -38,9 +35,11 @@ app.use(cors({
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Team-ID'],
-}));
+};
 
-app.options('*', cors());
+app.use(cors(corsOptions));
+// FIX #3 (antes usava cors() sem opções — permitia qualquer origem em preflight)
+app.options('*', cors(corsOptions));
 app.use((_req, res, next) => { res.setHeader('Vary', 'Origin'); next(); });
 
 // ==========================================
@@ -54,6 +53,7 @@ app.use('/api/auth/login', rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
 }));
+
 app.use('/api/auth/register', rateLimit({
   windowMs: 60 * 60 * 1000,
   max: 10,
@@ -62,11 +62,28 @@ app.use('/api/auth/register', rateLimit({
   legacyHeaders: false,
 }));
 
+// FIX #9: Rate limit específico para /teams/join (orgCode de 6 chars — enumerável)
+app.use('/api/teams/join', rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  message: { success: false, message: 'Muitas tentativas de entrar em equipe. Tente em 1 hora.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+}));
+
+// FIX #8: Rate limit na conversão de landing page (endpoint público — inflar contadores)
+app.use('/api/landing-pages/slug', rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  message: { success: false, message: 'Muitas requisições para esta página.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+}));
+
 /**
  * Extrai o userId do JWT sem verificar assinatura (apenas para rate-limit key).
  * Segurança: a autenticação real é feita pelo middleware `authenticate`.
- * IMPORTANTE: retorna SEMPRE uma string. Em express-rate-limit v7+,
- * retornar `undefined` lança ERR_ERL_KEY_GEN_UNDEFINED e vira 500.
+ * IMPORTANTE: retorna SEMPRE uma string.
  */
 function rateLimitKey(req: express.Request): string {
   const auth = req.headers.authorization;
@@ -99,7 +116,9 @@ app.use('/api', rateLimit({
 // PARSING
 // ==========================================
 
-app.use(express.json({ limit: '10mb' }));
+// FIX #7: Reduzido de 10mb para 500kb — payloads legítimos do CRM não precisam de 10MB
+// bulk import de contatos fica em ~50KB pra 500 contatos; avatar é URL string, não binário
+app.use(express.json({ limit: '500kb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
@@ -115,13 +134,20 @@ if (env.NODE_ENV !== 'test') {
 }
 
 // ==========================================
-// SWAGGER
+// SWAGGER — FIX #6: Apenas em não-produção
 // ==========================================
 
-app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
-  customCss: '.swagger-ui .topbar { display: none }',
-  customSiteTitle: 'Vext CRM API Docs',
-}));
+if (env.NODE_ENV !== 'production') {
+  app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+    customCss: '.swagger-ui .topbar { display: none }',
+    customSiteTitle: 'Vext CRM API Docs',
+  }));
+} else {
+  // Em produção: 404 informativo (não vaza que Swagger existe)
+  app.get('/api/docs', (_req, res) => {
+    res.status(404).json({ success: false, message: 'Rota não encontrada' });
+  });
+}
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString(), version: '2.1.0' });

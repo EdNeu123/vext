@@ -5,3 +5,24 @@ dist/
 *.log
 .DS_Store
 .firebase/
+
+# ==========================================
+# CHAVES E SEGREDOS — NUNCA versionar
+# ==========================================
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa
+id_rsa.pub
+id_ed25519
+id_ed25519.pub
+ssh.txt
+*_oracle
+*_oracle.pub
+*.pub
+vext_oracle*
+
+# Outros segredos
+*.secret
+*.credentials

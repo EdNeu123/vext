@@ -8,9 +8,20 @@ async function main() {
 
   // ====================================================================
   // USUÁRIO ADMIN
+  // FIX #5: Senha seed OBRIGATÓRIA via variável de ambiente.
+  // Nunca usar fallback hardcoded — senha versionada = comprometida.
   // ====================================================================
 
-  const adminPassword = process.env.ADMIN_SEED_PASSWORD || 'VextAdmin@2025!';
+  const adminPassword = process.env.ADMIN_SEED_PASSWORD;
+  if (!adminPassword || adminPassword.length < 12) {
+    console.error(
+      '❌ ADMIN_SEED_PASSWORD não definida ou muito curta (mínimo 12 chars).\n' +
+      '   Defina a variável antes de rodar o seed:\n' +
+      '   ADMIN_SEED_PASSWORD="SuaSenhaForte@2025" npx prisma db seed'
+    );
+    process.exit(1);
+  }
+
   const hashedPassword = await bcrypt.hash(adminPassword, 12);
 
   const admin = await prisma.user.upsert({
@@ -25,7 +36,9 @@ async function main() {
       salesGoal: 100000,
     },
   });
-  console.log(`  ✅ Admin: ${admin.email} (senha: ${adminPassword})`);
+
+  // FIX #11: Não imprimir a senha no log — nem parcialmente
+  console.log(`  ✅ Admin criado/verificado: ${admin.email}`);
 
   // ====================================================================
   // EQUIPE PADRÃO (multi-tenant)
