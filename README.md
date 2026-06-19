@@ -1,4 +1,4 @@
-# Vext CRM v2.1
+# Vext CRM v3.0
 
 CRM completo com arquitetura MVC — REST API (Express + Prisma + PostgreSQL) e frontend React + TypeScript.
 
